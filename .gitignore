@@ -1,0 +1,127 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.egg-info/
+dist/
+build/
+
+
+# =========================
+# Virtual Environment
+# =========================
+
+venv/
+env/
+.venv/
+
+
+# =========================
+# Environment Variables
+# =========================
+
+.env
+.env.*
+!.env.example
+
+
+# =========================
+# Large Dataset Files
+# =========================
+
+# Raw datasets
+*.csv
+*.xlsx
+*.parquet
+
+# Archives
+*.zip
+*.tar
+*.gz
+
+
+# =========================
+# ML Models
+# =========================
+
+*.pt
+*.pth
+*.bin
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+
+# =========================
+# Embeddings / Vector Data
+# =========================
+
+embeddings/
+vectors/
+vector_store/
+*.npy
+*.npz
+*.faiss
+
+
+# =========================
+# Jupyter
+# =========================
+
+.ipynb_checkpoints/
+
+
+# =========================
+# Logs
+# =========================
+
+logs/
+*.log
+
+
+# =========================
+# IDE
+# =========================
+
+.vscode/
+.idea/
+
+
+# =========================
+# OS
+# =========================
+
+.DS_Store
+Thumbs.db
+
+
+# =========================
+# Frontend
+# =========================
+
+node_modules/
+.next/
+dist/
+
+
+# =========================
+# Deployment
+# =========================
+
+.wrangler/
+.vercel/
+
+
+# =========================
+# Temporary files
+# =========================
+
+*.tmp
+*.temp
+.cache/
+twcs.csv
