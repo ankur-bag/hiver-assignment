@@ -1,0 +1,12 @@
+{
+  "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+  "dimension": 384,
+  "metric": "cosine",
+  "dataset": "amazon_final_intent_dataset",
+  "clean_dataset_file": "vector_data/clean_vectors.csv",
+  "dataset_size": 52124,
+  "created_date": "2026-09-11T14:28:00+05:30",
+  "version": "v1",
+  "namespace": "amazon",
+  "normalization": "L2_normalized"
+}
