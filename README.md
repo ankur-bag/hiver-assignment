@@ -139,17 +139,14 @@ hiver-assignment/
 │   │   ├── layout.tsx                 # Root HTML layout
 │   │   └── page.tsx                   # Main page rendering ChatWindow
 │   ├── components/
-│   │   ├── ui/
-│   │   │   ├── ChatComposer.tsx       # Floating Claude-style glass composer
-│   │   │   ├── GlassPanel.tsx         # Enterprise blurred panel container
-│   │   │   ├── MetricRow.tsx          # Developer monospace telemetry row
-│   │   │   └── StatusIndicator.tsx    # Live system status beacon
-│   │   ├── ChatWindow.tsx             # Enterprise workspace & empty state canvas
-│   │   ├── ConfidenceBadge.tsx        # Developer progress-bar confidence indicator
-│   │   ├── EscalationAlert.tsx        # Minimalist human supervisor alert
-│   │   ├── IntentCard.tsx             # Clean telemetry intent diagnostics row
-│   │   ├── MessageBubble.tsx          # Claude-style readable typography message blocks
-│   │   └── TelemetryPanel.tsx         # Developer diagnostics side panel
+│   │   ├── ClaudeSidebar.tsx      # Authentic Claude collapsible navigation sidebar
+│   │   ├── ClaudeComposer.tsx     # Claude floating composer with pills, model tags & voice action
+│   │   ├── ChatWindow.tsx         # Claude conversation canvas & greeting state
+│   │   ├── MessageBubble.tsx      # Typographic Claude message blocks with terracotta asterisk
+│   │   ├── TelemetryPanel.tsx     # Floating diagnostics popover modal
+│   │   ├── ConfidenceBadge.tsx    # Progress-bar confidence indicator
+│   │   ├── EscalationAlert.tsx    # Human supervisor alert
+│   │   └── IntentCard.tsx         # Telemetry intent diagnostics row
 │   ├── hooks/
 │   │   └── useChat.ts                 # React hook managing chat state & retries
 │   ├── services/
