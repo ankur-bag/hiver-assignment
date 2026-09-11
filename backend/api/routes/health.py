@@ -5,7 +5,7 @@ Provides GET /api/v1/health for deployment liveness and container orchestrator p
 
 import os
 from fastapi import APIRouter
-from backend.ml.config import config as ml_config
+from ml.config import config as ml_config
 
 router = APIRouter(tags=["Health"])
 

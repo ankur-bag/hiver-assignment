@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from backend.services.chat_service import ChatService, get_chat_service
+from services.chat_service import ChatService, get_chat_service
 
 logger = logging.getLogger(__name__)
 

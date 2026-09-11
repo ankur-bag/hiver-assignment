@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 import joblib
 import numpy as np
 
-from backend.ml.config import MLConfig, config as default_config
-from backend.ml.embeddings.encoder import EmbeddingEncoder, get_embedding_encoder
-from backend.ml.preprocessing import clean_text, validate_and_clean_query, InputValidationError
+from ml.config import MLConfig, config as default_config
+from ml.embeddings.encoder import EmbeddingEncoder, get_embedding_encoder
+from ml.preprocessing import clean_text, validate_and_clean_query, InputValidationError
 
 logger = logging.getLogger(__name__)
 

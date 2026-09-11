@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
 
-from backend.ml.embeddings.encoder import get_embedding_encoder
-from backend.ml.inference import get_intent_classifier
+from ml.embeddings.encoder import get_embedding_encoder
+from ml.inference import get_intent_classifier
 
 logger = logging.getLogger(__name__)
 

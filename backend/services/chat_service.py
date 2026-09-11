@@ -7,7 +7,7 @@ Handles session tracking, message sanitization, and structured response preparat
 import logging
 import uuid
 from typing import Any, Dict, Optional
-from backend.services.rag_service import get_rag_service
+from services.rag_service import get_rag_service
 
 logger = logging.getLogger(__name__)
 

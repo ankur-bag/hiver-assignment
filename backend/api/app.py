@@ -6,17 +6,21 @@ registers centralized error handlers, and mounts versioned API routers.
 
 import logging
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from backend.api.errors import register_error_handlers
-from backend.api.middleware.cors import setup_cors
-from backend.api.middleware.security import RequestContextAndSecurityMiddleware
-from backend.api.routes.chat import router as chat_router
-from backend.api.routes.health import router as health_router
-from backend.ml.config import config as ml_config
-from backend.ml.embeddings.encoder import get_embedding_encoder
-from backend.ml.inference import get_intent_classifier
+# Load environment variables from .env if present
+load_dotenv()
+
+from api.errors import register_error_handlers
+from api.middleware.cors import setup_cors
+from api.middleware.security import RequestContextAndSecurityMiddleware
+from api.routes.chat import router as chat_router
+from api.routes.health import router as health_router
+from ml.config import config as ml_config
+from ml.embeddings.encoder import get_embedding_encoder
+from ml.inference import get_intent_classifier
 
 logging.basicConfig(
     level=logging.INFO,

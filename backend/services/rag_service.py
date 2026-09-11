@@ -17,13 +17,13 @@ import uuid
 from threading import Lock
 from typing import Any, Dict, Optional
 
-from backend.ml.inference import get_intent_classifier
-from backend.services.pinecone_service import get_pinecone_service
-from backend.services.gemini_service import get_gemini_service
-from backend.services.prompt_builder import build_support_prompt
-from backend.services.response_validator import validate_response
-from backend.services.language_service import detect_language, get_language_prompt_instruction
-from backend.services.escalation_service import evaluate_escalation
+from ml.inference import get_intent_classifier
+from services.pinecone_service import get_pinecone_service
+from services.gemini_service import get_gemini_service
+from services.prompt_builder import build_support_prompt
+from services.response_validator import validate_response
+from services.language_service import detect_language, get_language_prompt_instruction
+from services.escalation_service import evaluate_escalation
 
 logger = logging.getLogger(__name__)
 
