@@ -1,0 +1,31 @@
+{
+  "model_name": "embedding_intent_classifier",
+  "version": "1.0.0",
+  "architecture": "SentenceTransformer + Logistic Regression",
+  "embedding_backbone": "paraphrase-multilingual-MiniLM-L12-v2",
+  "embedding_dimension": 384,
+  "l2_normalized": true,
+  "classes_count": 9,
+  "intents": [
+    "ACCOUNT_ACCESS",
+    "ACCOUNT_SUPPORT",
+    "CUSTOMER_SERVICE_CONTACT",
+    "DELIVERY_DELAY",
+    "ESCALATION",
+    "ORDER_STATUS",
+    "PACKAGE_NOT_RECEIVED",
+    "PRODUCT_ISSUE",
+    "REFUND_PENDING"
+  ],
+  "training_samples": 52124,
+  "test_split": 0.15,
+  "accuracy": 0.9807,
+  "input_format": {
+    "type": "string",
+    "example": "My package has not arrived yet"
+  },
+  "output_format": {
+    "intent": "PACKAGE_NOT_RECEIVED",
+    "confidence": 0.97
+  }
+}

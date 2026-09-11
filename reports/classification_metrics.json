@@ -1,0 +1,69 @@
+{
+  "ACCOUNT_ACCESS": {
+    "precision": 0.983065198983912,
+    "recall": 0.9889267461669506,
+    "f1-score": 0.9859872611464968,
+    "support": 1174.0
+  },
+  "ACCOUNT_SUPPORT": {
+    "precision": 0.9827315541601256,
+    "recall": 0.9660493827160493,
+    "f1-score": 0.9743190661478599,
+    "support": 648.0
+  },
+  "CUSTOMER_SERVICE_CONTACT": {
+    "precision": 0.9847009735744089,
+    "recall": 0.9725274725274725,
+    "f1-score": 0.9785763648928818,
+    "support": 728.0
+  },
+  "DELIVERY_DELAY": {
+    "precision": 0.9847328244274809,
+    "recall": 0.9906143344709898,
+    "f1-score": 0.9876648234793705,
+    "support": 1172.0
+  },
+  "ESCALATION": {
+    "precision": 0.9684968496849685,
+    "recall": 0.9817518248175182,
+    "f1-score": 0.9750792931581332,
+    "support": 1096.0
+  },
+  "ORDER_STATUS": {
+    "precision": 0.9759398496240601,
+    "recall": 0.9878234398782344,
+    "f1-score": 0.9818456883509834,
+    "support": 657.0
+  },
+  "PACKAGE_NOT_RECEIVED": {
+    "precision": 0.9751619870410367,
+    "recall": 0.9699248120300752,
+    "f1-score": 0.9725363489499192,
+    "support": 931.0
+  },
+  "PRODUCT_ISSUE": {
+    "precision": 0.9864130434782609,
+    "recall": 0.983739837398374,
+    "f1-score": 0.9850746268656716,
+    "support": 738.0
+  },
+  "REFUND_PENDING": {
+    "precision": 0.9894736842105263,
+    "recall": 0.9748148148148148,
+    "f1-score": 0.982089552238806,
+    "support": 675.0
+  },
+  "accuracy": 0.9806880675278169,
+  "macro avg": {
+    "precision": 0.9811906627983089,
+    "recall": 0.9795747405356088,
+    "f1-score": 0.9803525583589026,
+    "support": 7819.0
+  },
+  "weighted avg": {
+    "precision": 0.9807272248389884,
+    "recall": 0.9806880675278169,
+    "f1-score": 0.9806805156692653,
+    "support": 7819.0
+  }
+}

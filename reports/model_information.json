@@ -1,0 +1,59 @@
+{
+  "model_name": "Intent Classifier (Amazon Support)",
+  "version": "1.0.0",
+  "task": "Multiclass Customer Intent Classification",
+  "backbone_model": "paraphrase-multilingual-MiniLM-L12-v2",
+  "embedding_dimension": 384,
+  "embedding_normalization": "L2 unit sphere",
+  "classifier_type": "LogisticRegression(max_iter=1000, multi_class='auto')",
+  "total_dataset_samples": 52124,
+  "test_samples": 7819,
+  "test_split_ratio": 0.15,
+  "classes_count": 9,
+  "classes": [
+    "ACCOUNT_ACCESS",
+    "ACCOUNT_SUPPORT",
+    "CUSTOMER_SERVICE_CONTACT",
+    "DELIVERY_DELAY",
+    "ESCALATION",
+    "ORDER_STATUS",
+    "PACKAGE_NOT_RECEIVED",
+    "PRODUCT_ISSUE",
+    "REFUND_PENDING"
+  ],
+  "metrics": {
+    "accuracy": 0.9807,
+    "macro_avg_f1": 0.9804,
+    "weighted_avg_f1": 0.9807,
+    "average_encoding_latency_ms": 8.14
+  },
+  "input_contract": {
+    "type": "object",
+    "required": [
+      "text"
+    ],
+    "properties": {
+      "text": {
+        "type": "string",
+        "example": "My package has not arrived yet"
+      }
+    }
+  },
+  "output_contract": {
+    "type": "object",
+    "required": [
+      "intent",
+      "confidence"
+    ],
+    "properties": {
+      "intent": {
+        "type": "string",
+        "example": "PACKAGE_NOT_RECEIVED"
+      },
+      "confidence": {
+        "type": "number",
+        "example": 0.97
+      }
+    }
+  }
+}
