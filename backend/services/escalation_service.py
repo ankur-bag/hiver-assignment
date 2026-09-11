@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 
 # Security and high-risk intent keywords
 SECURITY_FRAUD_PATTERNS = [
-    re.compile(r"\bunauthorized\s+charge\b", re.IGNORECASE),
+    re.compile(r"\bunauthorized\s+(charge|transaction|order|purchase|access)\b", re.IGNORECASE),
     re.compile(r"\bcredit\s+card\s+fraud\b", re.IGNORECASE),
     re.compile(r"\bidentity\s+theft\b", re.IGNORECASE),
-    re.compile(r"\bhacked\s+(account|profile)\b", re.IGNORECASE),
-    re.compile(r"\bstolen\s+card\b", re.IGNORECASE),
+    re.compile(r"\b(hacked|compromised)\b", re.IGNORECASE),
+    re.compile(r"\bstolen\s+(card|account|password)\b", re.IGNORECASE),
     re.compile(r"\blegal\s+(action|lawsuit|attorney|lawyer)\b", re.IGNORECASE),
 ]
 
