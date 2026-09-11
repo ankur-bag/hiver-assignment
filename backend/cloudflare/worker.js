@@ -17,7 +17,7 @@ export default {
 
     // 1. CORS Preflight Handling (OPTIONS)
     if (request.method === "OPTIONS") {
-      return handleOptions(request);
+      return handleOptions(request, env);
     }
 
     // 2. Health check shortcut at Edge
@@ -26,7 +26,7 @@ export default {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          ...getCorsHeaders(request),
+          ...getCorsHeaders(request, env),
         },
       });
     }
@@ -46,7 +46,7 @@ export default {
             status: 403,
             headers: {
               "Content-Type": "application/json",
-              ...getCorsHeaders(request),
+              ...getCorsHeaders(request, env),
             },
           }
         );
@@ -74,7 +74,7 @@ export default {
               status: 403,
               headers: {
                 "Content-Type": "application/json",
-                ...getCorsHeaders(request),
+                ...getCorsHeaders(request, env),
               },
             }
           );
@@ -109,7 +109,7 @@ export default {
 
       // Construct edge response with CORS headers
       const responseHeaders = new Headers(backendResponse.headers);
-      const corsHeaders = getCorsHeaders(request);
+      const corsHeaders = getCorsHeaders(request, env);
       for (const [key, value] of Object.entries(corsHeaders)) {
         responseHeaders.set(key, value);
       }
@@ -133,7 +133,7 @@ export default {
           status: 502,
           headers: {
             "Content-Type": "application/json",
-            ...getCorsHeaders(request),
+            ...getCorsHeaders(request, env),
           },
         }
       );
@@ -141,10 +141,12 @@ export default {
   },
 };
 
-function getCorsHeaders(request) {
-  const origin = request.headers.get("Origin") || "*";
+function getCorsHeaders(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  const configured = (env.ALLOWED_ORIGINS || "http://localhost:3000").split(",").map(value => value.trim());
+  const allowedOrigin = configured.includes(origin) ? origin : configured[0];
   return {
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, CF-Turnstile-Token, x-turnstile-token",
     "Access-Control-Allow-Credentials": "true",
@@ -152,9 +154,9 @@ function getCorsHeaders(request) {
   };
 }
 
-function handleOptions(request) {
+function handleOptions(request, env) {
   return new Response(null, {
     status: 204,
-    headers: getCorsHeaders(request),
+    headers: getCorsHeaders(request, env),
   });
 }
