@@ -4,11 +4,18 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChatMessage,
   ChatResponsePayload,
+  ConversationItem,
   ServiceHealth,
   StreamMetadataPayload,
   StreamCompletePayload,
 } from '../types/chat';
-import { streamChatMessage, checkBackendHealth } from '../services/api';
+import {
+  streamChatMessage,
+  checkBackendHealth,
+  listConversations,
+  getConversation,
+  deleteConversation,
+} from '../services/api';
 
 export type StreamingStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error' | 'aborted';
 
@@ -38,10 +45,20 @@ export function useChat() {
   const [sessionId, setSessionId] = useState<string>('');
   const [health, setHealth] = useState<ServiceHealth>({ status: 'healthy' });
   const [activeAnalysis, setActiveAnalysis] = useState<ChatResponsePayload | null>(null);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initialize session ID on mount & run health polling
+  const refreshConversations = useCallback(async () => {
+    try {
+      const list = await listConversations();
+      setConversations(list);
+    } catch (err) {
+      console.warn('Could not refresh conversations:', err);
+    }
+  }, []);
+
+  // Initialize session ID on mount & run health and conversation polling
   useEffect(() => {
     const storedSession = typeof window !== 'undefined' ? localStorage.getItem('hiver_chat_session') : null;
     const initialSession = storedSession || Math.random().toString(36).substring(2, 10);
@@ -60,11 +77,12 @@ export function useChat() {
 
     // Immediate check
     pollHealth();
+    refreshConversations();
 
     // Periodic check every 10 seconds
     const interval = setInterval(pollHealth, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshConversations]);
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -138,15 +156,16 @@ export function useChat() {
         setIsStreaming(false);
         setLoading(false);
 
-        let errorMsg = err?.message || 'Support service temporarily unavailable';
+        let rawError = err?.message || 'Support AI is temporarily busy. Please try again.';
         const isQuota =
+          err?.code === 'PROVIDER_QUOTA_EXHAUSTED' ||
           err?.code === 'EMBEDDING_DAILY_QUOTA_EXHAUSTED' ||
-          errorMsg.includes('EMBEDDING_DAILY_QUOTA_EXHAUSTED') ||
-          errorMsg.toLowerCase().includes('quota') ||
-          errorMsg.includes('RESOURCE_EXHAUSTED');
+          rawError.toLowerCase().includes('quota') ||
+          rawError.includes('RESOURCE_EXHAUSTED');
 
+        let errorMsg = 'Support AI is temporarily busy. Please try again.';
         if (isQuota) {
-          errorMsg = 'Embedding quota reached. Please try again later.';
+          errorMsg = 'Support AI daily quota reached. Please try again later.';
         }
 
         setError(errorMsg);
@@ -280,6 +299,9 @@ export function useChat() {
                 request_id: completeData.telemetry?.request_id || '',
                 telemetry: completeData.telemetry,
               });
+
+              // Refresh conversation list after response is fully generated
+              refreshConversations();
             },
             onError: (err: Error) => {
               handleFailure(err);
@@ -299,7 +321,7 @@ export function useChat() {
         abortControllerRef.current = null;
       }
     },
-    [loading, sessionId]
+    [loading, sessionId, refreshConversations]
   );
 
   const retryLastMessage = useCallback(() => {
@@ -330,8 +352,77 @@ export function useChat() {
     setStreamingStatus('idle');
   }, [stopGeneration]);
 
+  const selectConversation = useCallback(async (id: string) => {
+    if (!id || id === sessionId) return;
+    stopGeneration();
+    try {
+      const detail = await getConversation(id);
+      if (detail && detail.conversation) {
+        setSessionId(detail.conversation.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('hiver_chat_session', detail.conversation.id);
+        }
+        if (detail.messages && detail.messages.length > 0) {
+          const mapped: ChatMessage[] = detail.messages.map((m: {
+            id: string;
+            role: 'user' | 'assistant';
+            content: string;
+            intent?: string | null;
+            escalated?: number | boolean | null;
+            created_at: string;
+          }) => ({
+            id: m.id,
+            sender: m.role === 'assistant' ? 'agent' : 'user',
+            text: m.content,
+            timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            intent: m.intent || undefined,
+            escalate: m.escalated === 1 || m.escalated === true,
+          }));
+          setMessages(mapped);
+
+          // Find last assistant message to populate analysis panel
+          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant');
+          if (lastAssistant) {
+            setActiveAnalysis({
+              reply: lastAssistant.content,
+              intent: lastAssistant.intent || 'CUSTOMER_SERVICE_CONTACT',
+              retrieved_context: 'available',
+              retrieved_cases: 1,
+              escalate: lastAssistant.escalated === 1 || lastAssistant.escalated === true,
+              escalation_reason: null,
+              language: 'en',
+              session_id: detail.conversation.id,
+              request_id: '',
+              telemetry: {},
+            });
+          } else {
+            setActiveAnalysis(null);
+          }
+        }
+        setError(null);
+      }
+    } catch (err) {
+      console.warn('Could not select conversation:', err);
+    }
+  }, [sessionId, stopGeneration]);
+
+  const deleteConv = useCallback(async (id: string) => {
+    try {
+      const ok = await deleteConversation(id);
+      if (ok) {
+        setConversations((prev) => prev.filter((c) => c.id !== id));
+        if (sessionId === id) {
+          clearChat();
+        }
+      }
+    } catch (err) {
+      console.warn('Could not delete conversation:', err);
+    }
+  }, [sessionId, clearChat]);
+
   return {
     messages,
+    conversations,
     loading,
     isStreaming,
     streamingStatus,
@@ -343,5 +434,8 @@ export function useChat() {
     stopGeneration,
     retryLastMessage,
     clearChat,
+    selectConversation,
+    deleteConv,
+    refreshConversations,
   };
 }

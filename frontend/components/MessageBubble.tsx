@@ -51,7 +51,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             {message.isStreaming && !message.text ? (
               <div className="flex items-center gap-2 py-1 text-[13px] text-[#8C8B88]">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Thinking...</span>
+                <span>Searching support history...</span>
               </div>
             ) : (
               <div className="whitespace-pre-wrap">

@@ -18,6 +18,7 @@ const SAMPLE_PROMPTS = [
 export const ChatWindow: React.FC = () => {
   const {
     messages,
+    conversations,
     loading,
     isStreaming,
     error,
@@ -28,6 +29,8 @@ export const ChatWindow: React.FC = () => {
     stopGeneration,
     retryLastMessage,
     clearChat,
+    selectConversation,
+    deleteConv,
   } = useChat();
 
   const [inputQuery, setInputQuery] = useState('');
@@ -65,6 +68,9 @@ export const ChatWindow: React.FC = () => {
         onOpenSettings={() => setShowSettingsModal(true)}
         health={health}
         sessionId={sessionId}
+        conversations={conversations}
+        onSelectConversation={selectConversation}
+        onDeleteConversation={deleteConv}
       />
 
       {/* -------------------------------------------------

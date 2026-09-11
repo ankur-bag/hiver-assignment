@@ -48,3 +48,22 @@ export interface ServiceHealth {
   status: 'healthy' | 'degraded' | 'offline';
   services?: { application: string; file_search_store: string; gemini: string };
 }
+
+export interface ConversationItem {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetailResponse {
+  conversation: ConversationItem;
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    intent?: string | null;
+    escalated?: number | boolean | null;
+    created_at: string;
+  }>;
+}
