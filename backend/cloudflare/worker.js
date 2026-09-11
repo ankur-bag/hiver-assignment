@@ -12,7 +12,7 @@
 
 export default {
   async fetch(request, env, ctx) {
-    const BACKEND_URL = env.BACKEND_API_URL || "http://localhost:8000";
+    const BACKEND_URL = env.BACKEND_API_URL;
     const url = new URL(request.url);
 
     // 1. CORS Preflight Handling (OPTIONS)
@@ -32,7 +32,7 @@ export default {
     }
 
     // 3. Optional Turnstile Abuse Protection for Chat Endpoints
-    const isChatEndpoint = url.pathname.startsWith("/api/v1/chat");
+    const isChatEndpoint = url.pathname === "/api/v1/chat" || url.pathname === "/api/v1/chat/stream";
     if (isChatEndpoint && request.method === "POST" && env.TURNSTILE_ENABLED === "true") {
       const turnstileToken = request.headers.get("CF-Turnstile-Token") || request.headers.get("x-turnstile-token");
       const clientIp = request.headers.get("CF-Connecting-IP") || "127.0.0.1";
@@ -52,7 +52,9 @@ export default {
         );
       }
 
-      if (env.TURNSTILE_SECRET_KEY) {
+      if (!env.TURNSTILE_SECRET_KEY) {
+        return new Response(JSON.stringify({ error: "Turnstile is enabled but not configured." }), { status: 503, headers: { "Content-Type": "application/json", ...getCorsHeaders(request, env) } });
+      } else {
         const formData = new FormData();
         formData.append("secret", env.TURNSTILE_SECRET_KEY);
         formData.append("response", turnstileToken);
@@ -90,6 +92,12 @@ export default {
 
     newHeaders.set("X-Forwarded-For", clientIp);
     newHeaders.set("X-Request-ID", requestId);
+    if (isChatEndpoint) {
+      if (!env.EDGE_SHARED_SECRET) {
+        return new Response(JSON.stringify({ error: "Edge origin authentication is not configured." }), { status: 503, headers: { "Content-Type": "application/json", ...getCorsHeaders(request, env) } });
+      }
+      newHeaders.set("X-Hiver-Edge-Auth", env.EDGE_SHARED_SECRET);
+    }
 
     try {
       const backendResponse = await fetch(targetUrl.toString(), {

@@ -47,28 +47,18 @@ class ChatService:
         telemetry = rag_output.get("telemetry", {})
         request_id = telemetry.get("request_id", str(uuid.uuid4())[:8])
 
-        # Ensure standard latency field names are present for client telemetry
-        standardized_telemetry = dict(telemetry)
-        if "intent_latency_ms" in standardized_telemetry:
-            standardized_telemetry["inference_time_ms"] = standardized_telemetry["intent_latency_ms"]
-        if "retrieval_latency_ms" in standardized_telemetry:
-            standardized_telemetry["retrieval_time_ms"] = standardized_telemetry["retrieval_latency_ms"]
-        if "gemini_latency_ms" in standardized_telemetry:
-            standardized_telemetry["generation_time_ms"] = standardized_telemetry["gemini_latency_ms"]
-        if "total_latency_ms" in standardized_telemetry:
-            standardized_telemetry["total_time_ms"] = standardized_telemetry["total_latency_ms"]
-
         return {
             "reply": rag_output.get("reply", ""),
             "intent": rag_output.get("intent", "CUSTOMER_SERVICE_CONTACT"),
-            "confidence": rag_output.get("confidence", 0.0),
+            "retrieved_context": rag_output.get("retrieved_context", "unavailable"),
             "retrieved_cases": rag_output.get("retrieved_cases", 0),
             "escalate": rag_output.get("escalate", False),
             "escalation_reason": rag_output.get("escalation_reason"),
             "language": rag_output.get("language", "en"),
             "session_id": active_session_id,
             "request_id": request_id,
-            "telemetry": standardized_telemetry
+            "grounding_metadata": rag_output.get("grounding_metadata", []),
+            "telemetry": telemetry
         }
 
     def process_chat_message_stream(
@@ -98,16 +88,6 @@ class ChatService:
                 event_data["session_id"] = active_session_id
             elif event_type == "complete":
                 event_data["session_id"] = active_session_id
-                # Standardize telemetry key names for client consumption
-                telemetry = event_data.get("telemetry", {})
-                if "intent_latency_ms" in telemetry:
-                    telemetry["inference_time_ms"] = telemetry["intent_latency_ms"]
-                if "retrieval_latency_ms" in telemetry:
-                    telemetry["retrieval_time_ms"] = telemetry["retrieval_latency_ms"]
-                if "gemini_latency_ms" in telemetry:
-                    telemetry["generation_time_ms"] = telemetry["gemini_latency_ms"]
-                if "total_latency_ms" in telemetry:
-                    telemetry["total_time_ms"] = telemetry["total_latency_ms"]
 
             yield {
                 "event": event_type,

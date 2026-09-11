@@ -8,6 +8,8 @@ Strictly obeys data privacy: Never logs customer private queries, API keys, or r
 """
 
 import logging
+import hmac
+import os
 import time
 import uuid
 from collections import defaultdict
@@ -61,6 +63,15 @@ class RequestContextAndSecurityMiddleware(BaseHTTPMiddleware):
         # 1. Generate or forward request ID
         req_id = request.headers.get("x-request-id") or str(uuid.uuid4())[:8]
         request.state.request_id = req_id
+
+        # Render chat routes are private behind the Cloudflare Worker in production.
+        is_chat = request.method == "POST" and request.url.path in ("/api/v1/chat", "/api/v1/chat/stream")
+        local_mode = os.getenv("APP_ENV", "development").lower() in ("development", "local", "test")
+        expected_secret = os.getenv("EDGE_SHARED_SECRET", "")
+        if is_chat and not local_mode:
+            supplied_secret = request.headers.get("x-hiver-edge-auth", "")
+            if not expected_secret or not hmac.compare_digest(supplied_secret, expected_secret):
+                return JSONResponse(status_code=401, content={"error": "Unauthorized edge request", "request_id": req_id})
 
         # 2. Extract client IP
         client_ip = request.client.host if request.client else "127.0.0.1"
@@ -121,4 +132,3 @@ class RequestContextAndSecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(log_data)
             else:
                 logger.info(log_data)
-

@@ -36,6 +36,7 @@ env/
 *.csv
 *.xlsx
 *.parquet
+*.arrow
 
 *.zip
 *.tar
@@ -54,14 +55,6 @@ env/
 *.pkl
 *.joblib
 
-# Required production intent classifier artifacts (weights & metadata)
-!backend/ml/models/embedding_intent_classifier.pkl
-!backend/ml/models/classifier_weights.npz
-!backend/ml/models/label_map.json
-!backend/ml/models/model_metadata.json
-!backend/ml/models/onnx/*.json
-
-
 # =========================
 # Embeddings / Vector Data
 # =========================
@@ -72,11 +65,18 @@ env/
 /vectors/
 /vector_store/
 /vector_data/
+/hf_dataset/
+/file_search_dataset/
+
 
 *.npy
 *.npz
-!backend/ml/models/classifier_weights.npz
 *.faiss
+
+# Hugging Face and tool caches
+/.huggingface/
+**/.cache/huggingface/
+
 
 
 # =========================

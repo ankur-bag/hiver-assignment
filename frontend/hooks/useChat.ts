@@ -118,13 +118,13 @@ export function useChat() {
       setStreamingStatus('connecting');
       setError(null);
 
-      // Pre-populate analysis panel with awaiting state
+      // Pre-populate analysis panel with awaiting state.
       setActiveAnalysis({
         reply: '',
         intent: 'Analyzing...',
-        confidence: 0,
-        retrieved_cases: 0,
-        escalate: false,
+        retrieved_context: null,
+        retrieved_cases: null,
+        escalate: null,
         language: manualLang || 'auto',
         session_id: sessionId,
         request_id: '',
@@ -132,6 +132,57 @@ export function useChat() {
       });
 
       let accumulatedText = '';
+
+      const handleFailure = (err: any) => {
+        setStreamingStatus('error');
+        setIsStreaming(false);
+        setLoading(false);
+
+        let errorMsg = err?.message || 'Support service temporarily unavailable';
+        const isQuota =
+          err?.code === 'EMBEDDING_DAILY_QUOTA_EXHAUSTED' ||
+          errorMsg.includes('EMBEDDING_DAILY_QUOTA_EXHAUSTED') ||
+          errorMsg.toLowerCase().includes('quota') ||
+          errorMsg.includes('RESOURCE_EXHAUSTED');
+
+        if (isQuota) {
+          errorMsg = 'Embedding quota reached. Please try again later.';
+        }
+
+        setError(errorMsg);
+
+        // On failure: set Intent to Unavailable and all metrics to null (displaying '—')
+        setActiveAnalysis({
+          reply: '',
+          intent: 'Unavailable',
+          retrieved_context: null,
+          retrieved_cases: null,
+          escalate: null,
+          escalation_reason: null,
+          language: manualLang || 'auto',
+          session_id: sessionId,
+          request_id: '',
+          telemetry: {},
+        });
+
+        // If assistant message was empty, remove it and add system error
+        setMessages((prev) => {
+          const target = prev.find((m) => m.id === agentMsgId);
+          if (target && !target.text.trim()) {
+            return [
+              ...prev.filter((m) => m.id !== agentMsgId),
+              {
+                id: 'err-' + Date.now(),
+                sender: 'system',
+                text: errorMsg,
+                timestamp: getFormattedTime(),
+                error: true,
+              },
+            ];
+          }
+          return prev.map((m) => (m.id === agentMsgId ? { ...m, isStreaming: false } : m));
+        });
+      };
 
       try {
         await streamChatMessage(
@@ -147,9 +198,9 @@ export function useChat() {
               setActiveAnalysis((prev) => ({
                 reply: accumulatedText,
                 intent: metadata.intent,
-                confidence: metadata.confidence,
+                retrieved_context: metadata.retrieved_context,
                 retrieved_cases: metadata.retrieved_cases,
-                escalate: prev?.escalate || false,
+                escalate: prev?.escalate ?? null,
                 language: metadata.language,
                 session_id: metadata.session_id || sessionId,
                 request_id: metadata.request_id,
@@ -170,7 +221,7 @@ export function useChat() {
                     ? {
                         ...msg,
                         intent: metadata.intent,
-                        confidence: metadata.confidence,
+                        retrieved_context: metadata.retrieved_context,
                         retrieved_cases: metadata.retrieved_cases,
                         language: metadata.language,
                         request_id: metadata.request_id,
@@ -205,7 +256,7 @@ export function useChat() {
                         ...msg,
                         isStreaming: false,
                         intent: completeData.intent,
-                        confidence: completeData.confidence,
+                        retrieved_context: completeData.retrieved_context,
                         retrieved_cases: completeData.retrieved_cases,
                         escalate: completeData.escalate,
                         escalation_reason: completeData.escalation_reason,
@@ -220,7 +271,7 @@ export function useChat() {
               setActiveAnalysis({
                 reply: accumulatedText,
                 intent: completeData.intent,
-                confidence: completeData.confidence,
+                retrieved_context: completeData.retrieved_context,
                 retrieved_cases: completeData.retrieved_cases,
                 escalate: completeData.escalate,
                 escalation_reason: completeData.escalation_reason,
@@ -231,28 +282,7 @@ export function useChat() {
               });
             },
             onError: (err: Error) => {
-              setStreamingStatus('error');
-              setIsStreaming(false);
-              const errorMsg = err.message || 'Support service temporarily unavailable';
-              setError(errorMsg);
-
-              // If assistant message was empty, remove it and add system error
-              setMessages((prev) => {
-                const target = prev.find((m) => m.id === agentMsgId);
-                if (target && !target.text.trim()) {
-                  return [
-                    ...prev.filter((m) => m.id !== agentMsgId),
-                    {
-                      id: 'err-' + Date.now(),
-                      sender: 'system',
-                      text: errorMsg,
-                      timestamp: getFormattedTime(),
-                      error: true,
-                    },
-                  ];
-                }
-                return prev.map((m) => (m.id === agentMsgId ? { ...m, isStreaming: false } : m));
-              });
+              handleFailure(err);
             },
           },
           controller.signal
@@ -261,9 +291,7 @@ export function useChat() {
         if (err.name === 'AbortError') {
           setStreamingStatus('aborted');
         } else {
-          setStreamingStatus('error');
-          const errorMsg = err.message || 'Unable to connect to AI Support Service';
-          setError(errorMsg);
+          handleFailure(err);
         }
       } finally {
         setLoading(false);

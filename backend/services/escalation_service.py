@@ -1,88 +1,29 @@
-"""
-Customer Support Escalation Decision Engine.
-Evaluates deterministic rules to decide when a conversation must be
-transferred or escalated to a human customer support specialist.
-"""
+"""Deterministic mandatory escalation guardrails."""
 
 import re
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Optional
 
-# Security and high-risk intent keywords
-SECURITY_FRAUD_PATTERNS = [
-    re.compile(r"\bunauthorized\s+(charge|transaction|order|purchase|access)\b", re.IGNORECASE),
-    re.compile(r"\bcredit\s+card\s+fraud\b", re.IGNORECASE),
-    re.compile(r"\bidentity\s+theft\b", re.IGNORECASE),
-    re.compile(r"\b(hacked|compromised)\b", re.IGNORECASE),
-    re.compile(r"\bstolen\s+(card|account|password)\b", re.IGNORECASE),
-    re.compile(r"\blegal\s+(action|lawsuit|attorney|lawyer)\b", re.IGNORECASE),
-]
-
-MIN_CONFIDENCE_THRESHOLD = 0.40
+MANDATORY_PATTERNS = (
+    (re.compile(r"\b(hack(?:ed)?|compromis(?:e|ed)|account takeover|identity theft)\b", re.I), "Possible account compromise."),
+    (re.compile(r"\b(fraud|unauthori[sz]ed (?:charge|transaction|purchase|order|access))\b", re.I), "Possible fraud or unauthorized activity."),
+    (re.compile(r"\b(stolen (?:card|account|password)|unsafe|danger|threat)\b", re.I), "Security or safety-sensitive issue."),
+    (re.compile(r"\b(human|agent|manager|supervisor|representative|escalat(?:e|ion))\b", re.I), "Customer explicitly requested human assistance."),
+)
 
 
+@dataclass(frozen=True)
 class EscalationDecision:
-    """Represents an escalation decision outcome."""
-    def __init__(self, should_escalate: bool, reason: Optional[str] = None):
-        self.should_escalate = should_escalate
-        self.reason = reason
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "escalate": self.should_escalate,
-            "reason": self.reason
-        }
+    should_escalate: bool
+    reason: Optional[str] = None
 
 
-def evaluate_escalation(
-    query: str,
-    predicted_intent: str,
-    confidence: float,
-    retrieval_status: str = "success",
-    generation_failed: bool = False
-) -> EscalationDecision:
-    """
-    Evaluates multi-factor escalation rules.
-
-    Args:
-        query: Customer query string.
-        predicted_intent: Intent from classifier.
-        confidence: Prediction confidence score.
-        retrieval_status: Status from Pinecone retrieval ('success', 'no_match', 'unavailable').
-        generation_failed: Flag indicating whether LLM generation encountered an unrecoverable failure.
-
-    Returns:
-        EscalationDecision object.
-    """
-    query_str = query or ""
-
-    # Rule 1: Explicit Escalation Intent
-    if predicted_intent == "ESCALATION":
-        return EscalationDecision(
-            should_escalate=True,
-            reason="Customer explicitly requested manager, supervisor, or escalation."
-        )
-
-    # Rule 2: Security, fraud, or legal threat keywords
-    for pattern in SECURITY_FRAUD_PATTERNS:
-        match = pattern.search(query_str)
-        if match:
-            return EscalationDecision(
-                should_escalate=True,
-                reason=f"High-risk account issue detected: '{match.group(0)}'."
-            )
-
-    # Rule 3: Low classification confidence (ambiguous inquiry)
-    if confidence < MIN_CONFIDENCE_THRESHOLD:
-        return EscalationDecision(
-            should_escalate=True,
-            reason=f"Low intent confidence ({confidence:.2f} < {MIN_CONFIDENCE_THRESHOLD:.2f})."
-        )
-
-    # Rule 4: Generation failure or safety validator rejection
+def evaluate_escalation(query: str, model_escalate: bool = False, model_reason: Optional[str] = None, generation_failed: bool = False) -> EscalationDecision:
+    for pattern, reason in MANDATORY_PATTERNS:
+        if pattern.search(query or ""):
+            return EscalationDecision(True, reason)
     if generation_failed:
-        return EscalationDecision(
-            should_escalate=True,
-            reason="Automated response generation could not produce a safe, validated reply."
-        )
-
-    return EscalationDecision(should_escalate=False, reason=None)
+        return EscalationDecision(True, "Automated support is temporarily unavailable.")
+    if model_escalate:
+        return EscalationDecision(True, model_reason or "This request requires human review.")
+    return EscalationDecision(False, None)

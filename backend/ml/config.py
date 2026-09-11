@@ -19,31 +19,31 @@ MODELS_DIR = BASE_DIR / "models"
 class MLConfig:
     """Configuration settings for the ML Intent Inference Service."""
 
-    # Sentence Transformer embedding model identifier
+    # Gemini Embedding 2 model identifier
     EMBEDDING_MODEL_NAME: str = os.getenv(
-        "EMBEDDING_MODEL_NAME",
-        "paraphrase-multilingual-MiniLM-L12-v2"
+        "GEMINI_EMBEDDING_MODEL",
+        "gemini-embedding-2"
     )
 
-    # Embedding dimension for MiniLM-L12-v2
-    EMBEDDING_DIMENSION: int = 384
+    # Embedding dimension for Gemini Embedding 2 (default: 384)
+    EMBEDDING_DIMENSION: int = int(os.getenv("GEMINI_EMBEDDING_DIMENSION", "384"))
 
     # Classifier model artifact paths
     CLASSIFIER_PATH: Path = field(
-        default_factory=lambda: MODELS_DIR / "embedding_intent_classifier.pkl"
+        default_factory=lambda: MODELS_DIR / "gemini_classifier_weights.npz"
     )
     WEIGHTS_PATH: Path = field(
-        default_factory=lambda: MODELS_DIR / "classifier_weights.npz"
+        default_factory=lambda: MODELS_DIR / "gemini_classifier_weights.npz"
     )
 
     # Label mapping path
     LABEL_MAP_PATH: Path = field(
-        default_factory=lambda: MODELS_DIR / "label_map.json"
+        default_factory=lambda: MODELS_DIR / "gemini_label_map.json"
     )
 
     # Metadata file path
     METADATA_PATH: Path = field(
-        default_factory=lambda: MODELS_DIR / "model_metadata.json"
+        default_factory=lambda: MODELS_DIR / "gemini_model_metadata.json"
     )
 
     # Minimum confidence required before triggering fallback / escalation flag

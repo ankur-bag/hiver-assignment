@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from services.chat_service import ChatService, get_chat_service
+from services.gemini_service import ProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ class ChatResponse(BaseModel):
     """Standardized API response contract."""
     reply: str
     intent: str
-    confidence: float
-    retrieved_cases: int
+    retrieved_context: int | str
+    retrieved_cases: int = 0
     escalate: bool
     escalation_reason: Optional[str] = None
     language: str
@@ -77,6 +78,11 @@ async def chat_endpoint(
                 result["telemetry"]["request_id"] = req_id
 
         return result
+    except ProviderError as exc:
+        logger.warning("Gemini provider failure: %s", exc)
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": str(exc)})
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Unhandled error processing chat query: %s", exc, exc_info=True)
         raise HTTPException(
@@ -147,4 +153,3 @@ async def chat_stream_endpoint(
         media_type="text/event-stream",
         headers=headers
     )
-

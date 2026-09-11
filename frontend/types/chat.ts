@@ -1,64 +1,44 @@
-/**
- * Core Type Definitions for Hiver AI Support Chatbot & Analysis Telemetry.
- */
-
 export interface TelemetryData {
   request_id?: string;
-  query_sanitized_length?: number;
-  language_detected?: string;
-  inference_time_ms?: number;
-  retrieval_time_ms?: number;
+  analysis_time_ms?: number;
   generation_time_ms?: number;
   total_time_ms?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
-export interface ChatResponsePayload {
-  reply: string;
+export interface AnalysisFields {
   intent: string;
-  confidence: number;
-  retrieved_cases: number;
-  escalate: boolean;
+  retrieved_context?: number | 'available' | 'unavailable' | null;
+  retrieved_cases?: number | null;
+  escalate?: boolean | null;
   escalation_reason?: string | null;
   language: string;
+}
+
+export interface ChatResponsePayload extends AnalysisFields {
+  reply: string;
   session_id: string;
   request_id: string;
   telemetry: TelemetryData;
 }
 
-export interface ChatMessage {
+export interface ChatMessage extends Partial<AnalysisFields> {
   id: string;
   sender: 'user' | 'agent' | 'system';
   text: string;
   timestamp: string;
-  intent?: string;
-  confidence?: number;
-  retrieved_cases?: number;
-  escalate?: boolean;
-  escalation_reason?: string | null;
-  language?: string;
   request_id?: string;
   telemetry?: TelemetryData;
   error?: boolean;
   isStreaming?: boolean;
 }
 
-export interface StreamMetadataPayload {
+export interface StreamMetadataPayload extends AnalysisFields {
   request_id: string;
-  intent: string;
-  confidence: number;
-  language: string;
-  retrieved_cases: number;
   session_id?: string;
 }
 
-export interface StreamCompletePayload {
-  intent: string;
-  confidence: number;
-  language: string;
-  retrieved_cases: number;
-  escalate: boolean;
-  escalation_reason?: string | null;
+export interface StreamCompletePayload extends AnalysisFields {
   fallback: boolean;
   session_id?: string;
   telemetry: TelemetryData;
@@ -66,9 +46,5 @@ export interface StreamCompletePayload {
 
 export interface ServiceHealth {
   status: 'healthy' | 'degraded' | 'offline';
-  services?: {
-    intent_model: string;
-    pinecone: string;
-    gemini: string;
-  };
+  services?: { application: string; file_search_store: string; gemini: string };
 }

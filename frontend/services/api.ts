@@ -123,11 +123,20 @@ export async function streamChatMessage(
 
   if (!response || !response.ok) {
     let errorDetail = 'Support service temporarily unavailable';
+    let errorCode: string | undefined;
     if (response) {
       try {
         const errJson = await response.json();
-        if (errJson.error || errJson.detail) {
-          errorDetail = errJson.error || errJson.detail;
+        if (errJson.error) {
+          if (typeof errJson.error === 'object') {
+            errorDetail = errJson.error.message || errJson.error.code || errorDetail;
+            errorCode = errJson.error.code;
+          } else if (typeof errJson.error === 'string') {
+            errorDetail = errJson.error;
+          }
+        } else if (errJson.detail) {
+          errorDetail = typeof errJson.detail === 'string' ? errJson.detail : (errJson.detail.message || JSON.stringify(errJson.detail));
+          errorCode = typeof errJson.detail === 'object' ? errJson.detail.code : undefined;
         }
       } catch {
         errorDetail = `Server error (${response.status}: ${response.statusText})`;
@@ -136,6 +145,9 @@ export async function streamChatMessage(
       errorDetail = lastError.message;
     }
     const err = new Error(errorDetail);
+    if (errorCode) {
+      (err as any).code = errorCode;
+    }
     callbacks?.onError?.(err);
     throw err;
   }
@@ -190,7 +202,11 @@ export async function streamChatMessage(
           } else if (eventType === 'complete') {
             callbacks?.onComplete?.(parsed);
           } else if (eventType === 'error') {
-            const err = new Error(parsed.error || 'Support service temporarily unavailable');
+            const errorMsg = parsed.message || parsed.error || 'Support service temporarily unavailable';
+            const err = new Error(errorMsg);
+            if (parsed.code) {
+              (err as any).code = parsed.code;
+            }
             callbacks?.onError?.(err);
           }
         } catch (parseErr) {

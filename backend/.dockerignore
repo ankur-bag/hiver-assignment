@@ -1,22 +1,64 @@
-__pycache__
+# Python / build caches
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
-.pytest_cache
+.pytest_cache/
 .coverage
-htmlcov
+htmlcov/
+.cache/
+
+# Local configuration and credentials
 .env
+.env.*
 .env.local
-.git
+
+# Version control and IDEs
+.git/
 .gitignore
-.vscode
+.vscode/
+.idea/
+
+# Datasets and raw artifacts (datasets do NOT go to Render)
+data/
+datasets/
+file_search_dataset/
+hf_dataset/
+vector_data/
+embeddings/
+vectors/
+reports/
+evaluation/
 *.csv
 *.parquet
+*.arrow
 *.zip
 *.tar
 *.gz
-vector_data
-reports
-evaluation
-*.onnx
-ml/models/onnx/*.onnx
+*.xlsx
+
+# Test suites
+tests/
+
+# Legacy and heavy ML models (strictly excluded)
+ml/models/onnx/
+ml/embeddings/
+ml/inference.py
+ml/config.py
+ml/preprocessing.py
+ml/models/*.onnx
+ml/models/*.pt
+ml/models/*.pth
+ml/models/*.bin
+ml/models/embedding_intent_classifier.pkl
+ml/models/classifier_weights.npz
+ml/models/*.npz
+ml/models/*.pkl
+ml/models/*.joblib
+ml/models/*.faiss
+ml/models/*.safetensors
+
+# Research utilities and frontend are not part of the Render image
+scripts/
+frontend/
+.github/

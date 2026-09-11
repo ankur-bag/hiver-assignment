@@ -18,9 +18,6 @@ from api.middleware.cors import setup_cors
 from api.middleware.security import RequestContextAndSecurityMiddleware
 from api.routes.chat import router as chat_router
 from api.routes.health import router as health_router
-from ml.config import config as ml_config
-from ml.embeddings.encoder import get_embedding_encoder
-from ml.inference import get_intent_classifier
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,16 +30,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for warm-up and teardown tasks.
-    Pre-warms the ML embedding encoder and classifier on startup to minimize first-request latency.
+    Keeps startup quota-free; the Gemini client is initialized lazily.
     """
-    logger.info("Initializing Hiver AI Support Backend...")
-    try:
-        # Warm up singleton ML models
-        get_embedding_encoder()
-        get_intent_classifier()
-        logger.info("ML Inference subsystems warmed up successfully.")
-    except Exception as exc:
-        logger.warning("ML subsystem warm-up warning (will load on first request): %s", exc)
+    logger.info("Initializing Hiver AI Support Backend (Gemini File Search)")
 
     yield
 

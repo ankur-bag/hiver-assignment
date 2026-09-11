@@ -1,454 +1,99 @@
-"""
-End-to-End Production RAG Customer Support Orchestrator.
-Coordinates:
-1. Input validation & language detection
-2. Phase 1 Intent Classification
-3. Phase 2 Pinecone Vector Retrieval (Hybrid 2-stage + Fallback)
-4. Escalation Decision Engine
-5. Prompt Assembly with verified historical cases
-6. Gemini Response Synthesis
-7. Response Safety & Leakage Validation
-8. Non-PII Telemetry & Observability
-"""
+"""Gemini-native File Search customer-support pipeline."""
 
-import logging
 import time
 import uuid
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from ml.inference import get_intent_classifier
-from services.pinecone_service import get_pinecone_service
-from services.gemini_service import get_gemini_service
-from services.prompt_builder import build_support_prompt
-from services.response_validator import validate_response
-from services.language_service import detect_language, get_language_prompt_instruction
 from services.escalation_service import evaluate_escalation
+from services.gemini_service import ProviderError, SupportAnalysis, get_gemini_service
+from services.language_service import detect_language
+from services.response_validator import validate_response
 
-logger = logging.getLogger(__name__)
-
-# Fallback customer-facing resolution when AI service is unavailable or rejected
-GENERIC_SUPPORT_FALLBACK = (
-    "We apologize for the inconvenience. To assist you with your request right away, "
-    "please visit your 'Your Orders' page or contact our live customer service team at amazon.com/help."
-)
+SAFE_FALLBACK = "I’m sorry, but support is temporarily unavailable. Please contact a human support representative for help."
 
 
 class RAGService:
-    """
-    Main conversational RAG service coordinating intent prediction, vector retrieval,
-    LLM response synthesis, and safety validation.
-    """
-    _instance = None
-    _lock = Lock()
+    def __init__(self, gemini_service=None):
+        self.gemini_service = gemini_service or get_gemini_service()
 
-    def __init__(self):
-        self.classifier = get_intent_classifier()
-        self.retrieval_service = get_pinecone_service()
-        self.gemini_service = get_gemini_service()
+    def _analyze(self, query: str, language: Optional[str]):
+        started = time.perf_counter()
+        analysis, grounding, context = self.gemini_service.analyze(query, language or detect_language(query))
+        guardrail = evaluate_escalation(query, analysis.escalate, analysis.escalation_reason)
+        analysis.escalate = guardrail.should_escalate
+        analysis.escalation_reason = guardrail.reason
+        return analysis, grounding, context, (time.perf_counter() - started) * 1000
 
-    def chat(
-        self,
-        query: str,
-        language: Optional[str] = None,
-        top_k: int = 3
-    ) -> Dict[str, Any]:
-        """
-        Executes complete end-to-end RAG chat pipeline.
-
-        Args:
-            query: Raw customer query text.
-            language: Optional manual language code override (e.g. 'en', 'hi', 'es').
-            top_k: Number of historical support resolutions to retrieve.
-
-        Returns:
-            Dict matching required contract:
-            {
-                "reply": str,
-                "intent": str,
-                "confidence": float,
-                "escalate": bool,
-                "escalation_reason": Optional[str],
-                "retrieved_cases": int,
-                "fallback": bool,
-                "language": str,
-                "telemetry": Dict[str, Any]
-            }
-        """
-        request_id = str(uuid.uuid4())[:8]
-        start_total = time.time()
-
-        # Step 1: Input Validation
-        if not query or not query.strip():
-            return {
-                "reply": "Hello! How can I assist you with your Amazon orders, account, or deliveries today?",
-                "intent": "CUSTOMER_SERVICE_CONTACT",
-                "confidence": 0.0,
-                "escalate": False,
-                "escalation_reason": None,
-                "retrieved_cases": 0,
-                "fallback": True,
-                "language": "en",
-                "telemetry": {
-                    "request_id": request_id,
-                    "total_latency_ms": 0.0,
-                    "gemini_latency_ms": 0.0
-                }
-            }
-
-        # Step 2: Language Detection
-        detected_lang_code = language or detect_language(query)
-        lang_instruction = get_language_prompt_instruction(detected_lang_code)
-
-        # Step 3: Phase 1 Intent Classification
-        t_clf_start = time.time()
-        intent_res = self.classifier.predict(query, include_metadata=True)
-        predicted_intent = intent_res["intent"]
-        confidence = intent_res["confidence"]
-        clf_latency = (time.time() - t_clf_start) * 1000
-
-        # Step 4: Phase 2 Vector Retrieval in Pinecone
-        t_ret_start = time.time()
-        retrieval_data = self.retrieval_service.retrieve_similar_cases(
-            query=query,
-            intent=predicted_intent,
-            top_k=top_k
-        )
-        ret_latency = (time.time() - t_ret_start) * 1000
-        cases = retrieval_data.get("results", [])
-        retrieval_status = retrieval_data.get("retrieval_status", "success")
-        fallback_retrieval = retrieval_data.get("telemetry", {}).get("fallback_used", False)
-
-        # Step 5: Escalation Engine Evaluation
-        escalation = evaluate_escalation(
-            query=query,
-            predicted_intent=predicted_intent,
-            confidence=confidence,
-            retrieval_status=retrieval_status
-        )
-
-        # If escalation is already triggered by intent or security, provide warm escalation reply
-        if escalation.should_escalate and predicted_intent == "ESCALATION":
-            total_latency = (time.time() - start_total) * 1000
-            reply = (
-                "I understand this requires immediate attention. I am transferring your inquiry "
-                "to an Amazon customer support manager who will assist you shortly."
-            )
-            return {
-                "reply": reply,
-                "intent": predicted_intent,
-                "confidence": confidence,
-                "escalate": True,
-                "escalation_reason": escalation.reason,
-                "retrieved_cases": len(cases),
-                "fallback": False,
-                "language": detected_lang_code,
-                "telemetry": {
-                    "request_id": request_id,
-                    "intent_latency_ms": round(clf_latency, 2),
-                    "retrieval_latency_ms": round(ret_latency, 2),
-                    "gemini_latency_ms": 0.0,
-                    "total_latency_ms": round(total_latency, 2)
-                }
-            }
-
-        # Step 6: Assemble Gemini Prompt
-        prompt = build_support_prompt(
-            customer_query=query,
-            detected_intent=predicted_intent,
-            confidence_score=confidence,
-            historical_cases=cases,
-            target_language=lang_instruction
-        )
-
-        # Step 7: Call Gemini API
-        t_gemini_start = time.time()
-        generation_failed = False
-        raw_response = ""
-
-        try:
-            raw_response = self.gemini_service.generate_response(prompt=prompt)
-        except Exception as e:
-            logger.error(f"[{request_id}] Gemini generation failed: {e}", exc_info=True)
-            generation_failed = True
-
-        gemini_latency = (time.time() - t_gemini_start) * 1000
-
-        # Step 8: Validate and Sanitize Response
-        if not generation_failed:
-            validation = validate_response(raw_response)
-            if validation.is_valid:
-                final_reply = validation.sanitized_text
-            else:
-                logger.warning(f"[{request_id}] Response validation failed: {validation.reason}")
-                final_reply = GENERIC_SUPPORT_FALLBACK
-                generation_failed = True
-        else:
-            final_reply = GENERIC_SUPPORT_FALLBACK
-
-        # Re-evaluate escalation if generation encountered failure
-        if generation_failed:
-            escalation = evaluate_escalation(
-                query=query,
-                predicted_intent=predicted_intent,
-                confidence=confidence,
-                generation_failed=True
-            )
-
-        total_latency = (time.time() - start_total) * 1000
-
-        # Step 9: Structured Telemetry Logging (Zero PII stored)
-        logger.info(
-            f"RAG Request | id={request_id} | intent={predicted_intent} | conf={confidence:.2f} | "
-            f"cases={len(cases)} | escalate={escalation.should_escalate} | "
-            f"gemini_ms={gemini_latency:.1f} | total_ms={total_latency:.1f}"
-        )
-
+    @staticmethod
+    def _metadata(analysis: SupportAnalysis, grounding: list[dict[str, Any]], request_id: str) -> dict[str, Any]:
         return {
-            "reply": final_reply,
-            "intent": predicted_intent,
-            "confidence": confidence,
-            "escalate": escalation.should_escalate,
-            "escalation_reason": escalation.reason,
-            "retrieved_cases": len(cases),
-            "fallback": fallback_retrieval or generation_failed,
-            "language": detected_lang_code,
-            "telemetry": {
-                "request_id": request_id,
-                "intent_latency_ms": round(clf_latency, 2),
-                "retrieval_latency_ms": round(ret_latency, 2),
-                "gemini_latency_ms": round(gemini_latency, 2),
-                "total_latency_ms": round(total_latency, 2)
-            }
+            "request_id": request_id,
+            "intent": analysis.intent.value,
+            "language": analysis.language,
+            "retrieved_context": len(grounding) if grounding else ("available" if analysis.retrieved_context_available else "unavailable"),
+            "retrieved_cases": len(grounding),
+            "escalate": analysis.escalate,
+            "escalation_reason": analysis.escalation_reason,
+            "grounding_metadata": grounding,
         }
 
-    def chat_stream(
-        self,
-        query: str,
-        language: Optional[str] = None,
-        top_k: int = 3
-    ):
-        """
-        Executes end-to-end RAG chat pipeline yielding SSE event dictionaries:
-        - event: 'metadata' (upon classification and retrieval)
-        - event: 'token' (for each generated text chunk)
-        - event: 'complete' (upon finishing with final telemetry & escalation)
-        - event: 'error' (if an unrecoverable failure occurs)
-        """
-        request_id = str(uuid.uuid4())[:8]
-        start_total = time.time()
+    def chat(self, query: str, language: Optional[str] = None) -> dict[str, Any]:
+        request_id = str(uuid.uuid4())
+        started = time.perf_counter()
+        analysis, grounding, context, analysis_ms = self._analyze(query, language)
+        generation_start = time.perf_counter()
+        reply = self.gemini_service.generate_response(query, analysis, context)
+        validation = validate_response(reply)
+        if not validation.is_valid:
+            reply = SAFE_FALLBACK
+            decision = evaluate_escalation(query, analysis.escalate, analysis.escalation_reason, generation_failed=True)
+            analysis.escalate, analysis.escalation_reason = decision.should_escalate, decision.reason
+        generation_ms = (time.perf_counter() - generation_start) * 1000
+        result = self._metadata(analysis, grounding, request_id)
+        result.update({
+            "reply": validation.sanitized_text if validation.is_valid else reply,
+            "fallback": not validation.is_valid,
+            "telemetry": {"request_id": request_id, "analysis_time_ms": round(analysis_ms, 2), "generation_time_ms": round(generation_ms, 2), "total_time_ms": round((time.perf_counter()-started)*1000, 2)},
+        })
+        return result
 
-        # Step 1: Input Validation
-        if not query or not query.strip():
-            yield {
-                "event": "metadata",
-                "data": {
-                    "request_id": request_id,
-                    "intent": "CUSTOMER_SERVICE_CONTACT",
-                    "confidence": 0.0,
-                    "language": "en",
-                    "retrieved_cases": 0
-                }
-            }
-            yield {
-                "event": "token",
-                "data": {
-                    "text": "Hello! How can I assist you with your Amazon orders, account, or deliveries today?"
-                }
-            }
-            yield {
-                "event": "complete",
-                "data": {
-                    "intent": "CUSTOMER_SERVICE_CONTACT",
-                    "confidence": 0.0,
-                    "language": "en",
-                    "retrieved_cases": 0,
-                    "escalate": False,
-                    "escalation_reason": None,
-                    "fallback": True,
-                    "telemetry": {
-                        "request_id": request_id,
-                        "intent_latency_ms": 0.0,
-                        "retrieval_latency_ms": 0.0,
-                        "gemini_latency_ms": 0.0,
-                        "total_latency_ms": 0.0
-                    }
-                }
-            }
-            return
-
-        # Step 2: Language Detection
-        detected_lang_code = language or detect_language(query)
-        lang_instruction = get_language_prompt_instruction(detected_lang_code)
-
-        # Step 3: Phase 1 Intent Classification
-        t_clf_start = time.time()
-        intent_res = self.classifier.predict(query, include_metadata=True)
-        predicted_intent = intent_res["intent"]
-        confidence = intent_res["confidence"]
-        clf_latency = (time.time() - t_clf_start) * 1000
-
-        # Step 4: Phase 2 Vector Retrieval in Pinecone
-        t_ret_start = time.time()
-        retrieval_data = self.retrieval_service.retrieve_similar_cases(
-            query=query,
-            intent=predicted_intent,
-            top_k=top_k
-        )
-        ret_latency = (time.time() - t_ret_start) * 1000
-        cases = retrieval_data.get("results", [])
-        retrieval_status = retrieval_data.get("retrieval_status", "success")
-        fallback_retrieval = retrieval_data.get("telemetry", {}).get("fallback_used", False)
-
-        # Step 5: Immediate Metadata Event (Frontend AI Analysis panel updates instantly)
-        yield {
-            "event": "metadata",
-            "data": {
-                "request_id": request_id,
-                "intent": predicted_intent,
-                "confidence": confidence,
-                "language": detected_lang_code,
-                "retrieved_cases": len(cases)
-            }
-        }
-
-        # Step 6: Escalation Pre-check
-        escalation = evaluate_escalation(
-            query=query,
-            predicted_intent=predicted_intent,
-            confidence=confidence,
-            retrieval_status=retrieval_status
-        )
-
-        if escalation.should_escalate and predicted_intent == "ESCALATION":
-            escalation_msg = (
-                "I understand this requires immediate attention. I am transferring your inquiry "
-                "to an Amazon customer support manager who will assist you shortly."
-            )
-            yield {
-                "event": "token",
-                "data": {"text": escalation_msg}
-            }
-            total_latency = (time.time() - start_total) * 1000
-            yield {
-                "event": "complete",
-                "data": {
-                    "intent": predicted_intent,
-                    "confidence": confidence,
-                    "language": detected_lang_code,
-                    "retrieved_cases": len(cases),
-                    "escalate": True,
-                    "escalation_reason": escalation.reason,
-                    "fallback": False,
-                    "telemetry": {
-                        "request_id": request_id,
-                        "intent_latency_ms": round(clf_latency, 2),
-                        "retrieval_latency_ms": round(ret_latency, 2),
-                        "gemini_latency_ms": 0.0,
-                        "total_latency_ms": round(total_latency, 2)
-                    }
-                }
-            }
-            return
-
-        # Step 7: Assemble Prompt
-        prompt = build_support_prompt(
-            customer_query=query,
-            detected_intent=predicted_intent,
-            confidence_score=confidence,
-            historical_cases=cases,
-            target_language=lang_instruction
-        )
-
-        # Step 8: Stream Gemini Generation
-        t_gemini_start = time.time()
-        accumulated_chunks = []
-        tokens_emitted = False
-        generation_failed = False
-
+    def chat_stream(self, query: str, language: Optional[str] = None):
+        request_id = str(uuid.uuid4())
+        started = time.perf_counter()
         try:
-            for chunk in self.gemini_service.generate_response_stream(prompt=prompt):
-                if chunk:
-                    accumulated_chunks.append(chunk)
-                    tokens_emitted = True
-                    yield {
-                        "event": "token",
-                        "data": {"text": chunk}
-                    }
-        except Exception as e:
-            logger.error(f"[{request_id}] Gemini streaming failed: {e}", exc_info=True)
-            generation_failed = True
-            if not tokens_emitted:
-                accumulated_chunks.append(GENERIC_SUPPORT_FALLBACK)
-                yield {
-                    "event": "token",
-                    "data": {"text": GENERIC_SUPPORT_FALLBACK}
-                }
-
-        gemini_latency = (time.time() - t_gemini_start) * 1000
-        full_text = "".join(accumulated_chunks)
-
-        # Step 9: Validate Response Safety & Information Leakage
-        if not generation_failed:
-            validation = validate_response(full_text)
+            analysis, grounding, context, analysis_ms = self._analyze(query, language)
+            metadata = self._metadata(analysis, grounding, request_id)
+            yield {"event": "metadata", "data": metadata}
+            generation_start = time.perf_counter()
+            full_reply = []
+            for token in self.gemini_service.stream_response(query, analysis, context):
+                full_reply.append(token)
+                yield {"event": "token", "data": {"text": token}}
+            validation = validate_response("".join(full_reply))
             if not validation.is_valid:
-                logger.warning(f"[{request_id}] Streamed response validation failed: {validation.reason}")
-                generation_failed = True
-
-        # Re-evaluate escalation with generation failure status
-        if generation_failed:
-            escalation = evaluate_escalation(
-                query=query,
-                predicted_intent=predicted_intent,
-                confidence=confidence,
-                generation_failed=True
-            )
-
-        total_latency = (time.time() - start_total) * 1000
-
-        # Step 10: Final Authoritative Complete Event
-        yield {
-            "event": "complete",
-            "data": {
-                "intent": predicted_intent,
-                "confidence": confidence,
-                "language": detected_lang_code,
-                "retrieved_cases": len(cases),
-                "escalate": escalation.should_escalate,
-                "escalation_reason": escalation.reason,
-                "fallback": fallback_retrieval or generation_failed,
-                "telemetry": {
-                    "request_id": request_id,
-                    "intent_latency_ms": round(clf_latency, 2),
-                    "retrieval_latency_ms": round(ret_latency, 2),
-                    "gemini_latency_ms": round(gemini_latency, 2),
-                    "total_latency_ms": round(total_latency, 2)
-                }
-            }
-        }
+                raise ProviderError("Generated response did not pass safety validation")
+            yield {"event": "complete", "data": {**metadata, "fallback": False, "telemetry": {"request_id": request_id, "analysis_time_ms": round(analysis_ms, 2), "generation_time_ms": round((time.perf_counter()-generation_start)*1000, 2), "total_time_ms": round((time.perf_counter()-started)*1000, 2)}}}
+        except ProviderError as exc:
+            yield {"event": "error", "data": {"code": exc.code, "message": str(exc), "request_id": request_id, "retryable": exc.retryable}}
 
 
-# Singleton accessor
-_rag_service_instance = None
-_rag_lock = Lock()
+_instance = None
+_lock = Lock()
 
 
 def get_rag_service() -> RAGService:
-    """Returns singleton instance of RAGService."""
-    global _rag_service_instance
-    if _rag_service_instance is None:
-        with _rag_lock:
-            if _rag_service_instance is None:
-                _rag_service_instance = RAGService()
-    return _rag_service_instance
+    global _instance
+    if _instance is None:
+        with _lock:
+            if _instance is None:
+                _instance = RAGService()
+    return _instance
 
 
-def chat(query: str, language: Optional[str] = None) -> Dict[str, Any]:
-    """Convenience entrypoint for RAG chat pipeline."""
-    return get_rag_service().chat(query=query, language=language)
+def chat(query: str, language: Optional[str] = None):
+    return get_rag_service().chat(query, language)
 
 
 def chat_stream(query: str, language: Optional[str] = None):
-    """Convenience entrypoint for streaming RAG chat pipeline."""
-    return get_rag_service().chat_stream(query=query, language=language)
-
+    return get_rag_service().chat_stream(query, language)
