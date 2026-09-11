@@ -11,8 +11,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
 
   if (isSystem) {
     return (
-      <div className="flex justify-center my-6 animate-fade-in">
-        <div className="px-3.5 py-1.5 rounded-full bg-rose-500/[0.08] border border-rose-500/20 text-xs text-rose-300 font-mono text-center">
+      <div className="flex justify-center my-4 animate-fade-in">
+        <div className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 font-mono text-center">
           {message.text}
         </div>
       </div>
@@ -26,41 +26,47 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       }`}
     >
       <div
-        className={`max-w-[760px] w-full ${
-          isUser
-            ? 'flex flex-col items-end pl-12'
-            : 'flex flex-col items-start pr-12'
+        className={`max-w-[720px] w-full ${
+          isUser ? 'flex flex-col items-end pl-12' : 'flex flex-col items-start pr-8'
         }`}
       >
-        {/* Author Label & Timestamp */}
-        <div className="flex items-center gap-2 mb-1.5 text-xs text-[#71717A]">
-          <span className="font-medium text-[#A1A1AA]">
-            {isUser ? 'You' : 'Hiver AI'}
-          </span>
-          <span>•</span>
-          <span className="text-[11px] font-mono">{message.timestamp}</span>
-        </div>
-
-        {/* Message Content */}
+        {/* User Message: Clean dark rounded container */}
         {isUser ? (
-          <div className="rounded-2xl bg-[#15151C] border border-[rgba(255,255,255,0.08)] px-5 py-3.5 text-[15px] sm:text-[16px] text-[#F5F5F5] leading-relaxed shadow-sm">
+          <div className="rounded-2xl bg-[#282828] text-[#ECECEC] px-4 py-3 text-[15px] leading-relaxed shadow-xs max-w-full">
             <p className="whitespace-pre-wrap">{message.text}</p>
           </div>
         ) : (
-          <div className="w-full text-[15px] sm:text-[16px] text-[#F5F5F5] leading-relaxed pl-1">
-            <p className="whitespace-pre-wrap">{message.text}</p>
-          </div>
-        )}
+          /* Claude AI Response: Typographic clean prose directly on canvas */
+          <div className="w-full space-y-3">
+            {/* Claude Avatar & Name Header */}
+            <div className="flex items-center gap-2 text-xs text-[#9E9E9E] mb-1">
+              <span className="text-[#DA7756] text-sm">✳</span>
+              <span className="font-medium text-[#ECECEC]">Claude</span>
+              <span className="text-[11px] text-[#666666] font-mono">{message.timestamp}</span>
+            </div>
 
-        {/* Subtle AI Metadata Tag */}
-        {!isUser && message.intent && (
-          <div className="flex items-center gap-2 mt-2 pl-1 text-[11px] font-mono text-[#71717A]">
-            <span>Intent: {message.intent}</span>
-            {message.confidence !== undefined && (
-              <>
-                <span>•</span>
-                <span>{Math.round(message.confidence * 100)}% confidence</span>
-              </>
+            {/* AI Text Prose */}
+            <div className="text-[15px] leading-[1.65] text-[#ECECEC] font-normal pl-0.5">
+              <p className="whitespace-pre-wrap">{message.text}</p>
+            </div>
+
+            {/* Subtle Diagnostic Pills below response */}
+            {message.intent && (
+              <div className="flex items-center gap-2 pt-1 text-[11px] text-[#8C8C8C] font-mono">
+                <span className="px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.06] text-[#A3A3A3]">
+                  {message.intent}
+                </span>
+                {message.confidence !== undefined && (
+                  <span className="text-[#666666]">
+                    {Math.round(message.confidence * 100)}% match
+                  </span>
+                )}
+                {message.retrieved_cases !== undefined && (
+                  <span className="text-[#666666]">
+                    • {message.retrieved_cases} cases retrieved
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
