@@ -4,3 +4,10 @@ compatibility_date = "2024-03-01"
 
 [vars]
 TURNSTILE_ENABLED = "false"
+ALLOWED_ORIGINS = "http://localhost:3000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hiver-conversations"
+database_id = "881bd03e-5cb4-47a7-b752-339fa3ce2a46"
+migrations_dir = "migrations"
