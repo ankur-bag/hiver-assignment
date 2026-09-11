@@ -18,3 +18,5 @@ htmlcov
 vector_data
 reports
 evaluation
+*.onnx
+ml/models/onnx/*.onnx
