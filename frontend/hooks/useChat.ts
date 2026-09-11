@@ -12,6 +12,11 @@ import { streamChatMessage, checkBackendHealth } from '../services/api';
 
 export type StreamingStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error' | 'aborted';
 
+const getFormattedTime = () => {
+  if (typeof window === 'undefined') return 'Just now';
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 /**
  * Custom React Hook for Chat State Management.
  * Encapsulates real HTTP token streaming, AbortController cancellation,
@@ -23,7 +28,7 @@ export function useChat() {
       id: 'init-msg-1',
       sender: 'agent',
       text: 'Hello! I am your Amazon Support Assistant. How can I assist you with your order, delivery, return, or account today?',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: 'Just now',
     },
   ]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -36,7 +41,7 @@ export function useChat() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initialize session ID on mount
+  // Initialize session ID on mount & run health polling
   useEffect(() => {
     const storedSession = typeof window !== 'undefined' ? localStorage.getItem('hiver_chat_session') : null;
     const initialSession = storedSession || Math.random().toString(36).substring(2, 10);
@@ -45,8 +50,20 @@ export function useChat() {
       localStorage.setItem('hiver_chat_session', initialSession);
     }
 
-    // Check backend health
-    checkBackendHealth().then((h) => setHealth(h));
+    const pollHealth = () => {
+      checkBackendHealth().then((h) => {
+        if (h && h.status) {
+          setHealth(h);
+        }
+      });
+    };
+
+    // Immediate check
+    pollHealth();
+
+    // Periodic check every 10 seconds
+    const interval = setInterval(pollHealth, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const stopGeneration = useCallback(() => {
@@ -77,12 +94,13 @@ export function useChat() {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      const currentTime = getFormattedTime();
       const userMsgId = 'msg-' + Date.now();
       const userMessage: ChatMessage = {
         id: userMsgId,
         sender: 'user',
         text: trimmed,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: currentTime,
       };
 
       const agentMsgId = 'agent-' + (Date.now() + 1);
@@ -90,7 +108,7 @@ export function useChat() {
         id: agentMsgId,
         sender: 'agent',
         text: '',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: currentTime,
         isStreaming: true,
       };
 
@@ -103,11 +121,11 @@ export function useChat() {
       // Pre-populate analysis panel with awaiting state
       setActiveAnalysis({
         reply: '',
-        intent: 'ANALYZING...',
+        intent: 'Analyzing...',
         confidence: 0,
         retrieved_cases: 0,
         escalate: false,
-        language: manualLang || 'detecting',
+        language: manualLang || 'auto',
         session_id: sessionId,
         request_id: '',
         telemetry: {},
@@ -123,6 +141,7 @@ export function useChat() {
           {
             onMetadata: (metadata: StreamMetadataPayload) => {
               setStreamingStatus('streaming');
+              setHealth({ status: 'healthy' });
 
               // Immediately populate AI Analysis panel with classified intent & retrieval count
               setActiveAnalysis((prev) => ({
@@ -176,6 +195,7 @@ export function useChat() {
             onComplete: (completeData: StreamCompletePayload) => {
               setStreamingStatus('completed');
               setIsStreaming(false);
+              setHealth({ status: 'healthy' });
 
               // Update final authoritative message details
               setMessages((prev) =>
@@ -225,8 +245,8 @@ export function useChat() {
                     {
                       id: 'err-' + Date.now(),
                       sender: 'system',
-                      text: `⚠️ ${errorMsg}`,
-                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      text: errorMsg,
+                      timestamp: getFormattedTime(),
                       error: true,
                     },
                   ];
@@ -274,7 +294,7 @@ export function useChat() {
         id: 'init-msg-1',
         sender: 'agent',
         text: 'Hello! I am your Amazon Support Assistant. How can I assist you with your order, delivery, return, or account today?',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: 'Just now',
       },
     ]);
     setActiveAnalysis(null);
@@ -297,4 +317,3 @@ export function useChat() {
     clearChat,
   };
 }
-

@@ -5,27 +5,33 @@ import {
   StreamCompletePayload,
 } from '../types/chat';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function checkBackendHealth(): Promise<ServiceHealth> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/health`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      return { status: 'degraded' };
-    }
-
-    return await res.json();
-  } catch (err) {
-    console.error('Health check failed:', err);
-    return { status: 'offline' };
+  const urlsToTry = [DEFAULT_API_URL];
+  if (DEFAULT_API_URL.includes('localhost')) {
+    urlsToTry.push(DEFAULT_API_URL.replace('localhost', '127.0.0.1'));
   }
+
+  for (const baseUrl of urlsToTry) {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Continue to fallback url
+    }
+  }
+
+  return { status: 'offline' };
 }
 
 export async function sendChatMessage(
@@ -33,7 +39,7 @@ export async function sendChatMessage(
   sessionId?: string,
   language?: string
 ): Promise<ChatResponsePayload> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+  const res = await fetch(`${DEFAULT_API_URL}/api/v1/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -80,42 +86,67 @@ export async function streamChatMessage(
   callbacks?: StreamCallbacks,
   signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/chat/stream`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify({
-      text,
-      session_id: sessionId,
-      language: language || undefined,
-    }),
-    signal,
-  });
+  let response: Response | null = null;
+  const urlsToTry = [DEFAULT_API_URL];
+  if (DEFAULT_API_URL.includes('localhost')) {
+    urlsToTry.push(DEFAULT_API_URL.replace('localhost', '127.0.0.1'));
+  }
 
-  if (!res.ok) {
-    let errorDetail = 'Support service temporarily unavailable';
+  let lastError: Error | null = null;
+
+  for (const baseUrl of urlsToTry) {
     try {
-      const errJson = await res.json();
-      if (errJson.error || errJson.detail) {
-        errorDetail = errJson.error || errJson.detail;
+      response = await fetch(`${baseUrl}/api/v1/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
+          text,
+          session_id: sessionId,
+          language: language || undefined,
+        }),
+        signal,
+      });
+
+      if (response && response.ok) {
+        break;
       }
-    } catch {
-      errorDetail = `Server error (${res.status}: ${res.statusText})`;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+
+  if (!response || !response.ok) {
+    let errorDetail = 'Support service temporarily unavailable';
+    if (response) {
+      try {
+        const errJson = await response.json();
+        if (errJson.error || errJson.detail) {
+          errorDetail = errJson.error || errJson.detail;
+        }
+      } catch {
+        errorDetail = `Server error (${response.status}: ${response.statusText})`;
+      }
+    } else if (lastError) {
+      errorDetail = lastError.message;
     }
     const err = new Error(errorDetail);
     callbacks?.onError?.(err);
     throw err;
   }
 
-  if (!res.body) {
+  if (!response.body) {
     const err = new Error('No response body returned from streaming server');
     callbacks?.onError?.(err);
     throw err;
   }
 
-  const reader = res.body.getReader();
+  const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
 
@@ -178,4 +209,3 @@ export async function streamChatMessage(
     reader.releaseLock();
   }
 }
-
