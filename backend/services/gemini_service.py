@@ -99,6 +99,60 @@ class GeminiService:
 
         return ""
 
+    def generate_response_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.2,
+        max_output_tokens: int = 512
+    ):
+        """
+        Calls Gemini Streaming API and yields text chunks as they arrive from the model.
+
+        Args:
+            prompt: Formatted RAG prompt.
+            temperature: Sampling temperature.
+            max_output_tokens: Maximum tokens in generated reply.
+
+        Yields:
+            str: Progressive text chunks emitted by Gemini.
+        """
+        if not prompt or not prompt.strip():
+            return
+
+        client = self._get_client()
+
+        # Retry logic for establishing the stream connection
+        stream = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                logger.info(f"Dispatching streaming prompt to Gemini model '{self.model_name}' (attempt {attempt}/{MAX_RETRIES})...")
+                stream = client.models.generate_content_stream(
+                    model=self.model_name,
+                    contents=prompt
+                )
+                break
+            except Exception as e:
+                err_str = str(e)
+                logger.warning(f"Gemini API streaming attempt {attempt} connection failed: {err_str}")
+                if attempt == MAX_RETRIES:
+                    logger.error(f"Exhausted {MAX_RETRIES} attempts connecting to Gemini stream: {err_str}")
+                    raise e
+                sleep_time = INITIAL_BACKOFF_SEC * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        if stream is None:
+            return
+
+        # Iterate over streamed chunks
+        try:
+            for chunk in stream:
+                if chunk and chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            logger.error(f"Error during Gemini stream iteration: {e}", exc_info=True)
+            raise e
+
+
 
 _gemini_service_instance = None
 _gemini_lock = Lock()

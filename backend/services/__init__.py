@@ -15,7 +15,7 @@ from .prompt_builder import build_support_prompt
 from .response_validator import validate_response, ResponseValidationResult
 from .language_service import detect_language, get_language_prompt_instruction
 from .escalation_service import evaluate_escalation, EscalationDecision
-from .rag_service import RAGService, get_rag_service, chat
+from .rag_service import RAGService, get_rag_service, chat, chat_stream
 
 __all__ = [
     "PineconeRetrievalService",
@@ -34,4 +34,5 @@ __all__ = [
     "RAGService",
     "get_rag_service",
     "chat",
+    "chat_stream",
 ]

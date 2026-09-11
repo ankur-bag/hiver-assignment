@@ -71,6 +71,50 @@ class ChatService:
             "telemetry": standardized_telemetry
         }
 
+    def process_chat_message_stream(
+        self,
+        query: str,
+        session_id: Optional[str] = None,
+        language: Optional[str] = None
+    ):
+        """
+        Executes streaming business workflow yielding event payloads for SSE.
+
+        Args:
+            query: Raw customer query string.
+            session_id: Conversation session identifier.
+            language: Optional manual language override.
+
+        Yields:
+            Dict with 'event' and 'data' keys for SSE streaming.
+        """
+        active_session_id = session_id or str(uuid.uuid4())[:8]
+
+        for sse_event in self.rag_service.chat_stream(query=query, language=language):
+            event_type = sse_event.get("event")
+            event_data = sse_event.get("data", {})
+
+            if event_type == "metadata":
+                event_data["session_id"] = active_session_id
+            elif event_type == "complete":
+                event_data["session_id"] = active_session_id
+                # Standardize telemetry key names for client consumption
+                telemetry = event_data.get("telemetry", {})
+                if "intent_latency_ms" in telemetry:
+                    telemetry["inference_time_ms"] = telemetry["intent_latency_ms"]
+                if "retrieval_latency_ms" in telemetry:
+                    telemetry["retrieval_time_ms"] = telemetry["retrieval_latency_ms"]
+                if "gemini_latency_ms" in telemetry:
+                    telemetry["generation_time_ms"] = telemetry["gemini_latency_ms"]
+                if "total_latency_ms" in telemetry:
+                    telemetry["total_time_ms"] = telemetry["total_latency_ms"]
+
+            yield {
+                "event": event_type,
+                "data": event_data
+            }
+
+
 
 _chat_service_instance = None
 

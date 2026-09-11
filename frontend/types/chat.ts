@@ -40,6 +40,28 @@ export interface ChatMessage {
   request_id?: string;
   telemetry?: TelemetryData;
   error?: boolean;
+  isStreaming?: boolean;
+}
+
+export interface StreamMetadataPayload {
+  request_id: string;
+  intent: string;
+  confidence: number;
+  language: string;
+  retrieved_cases: number;
+  session_id?: string;
+}
+
+export interface StreamCompletePayload {
+  intent: string;
+  confidence: number;
+  language: string;
+  retrieved_cases: number;
+  escalate: boolean;
+  escalation_reason?: string | null;
+  fallback: boolean;
+  session_id?: string;
+  telemetry: TelemetryData;
 }
 
 export interface ServiceHealth {

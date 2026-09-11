@@ -139,11 +139,10 @@ hiver-assignment/
 │   │   ├── layout.tsx                 # Root HTML layout
 │   │   └── page.tsx                   # Main page rendering ChatWindow
 │   ├── components/
-│   │   ├── ClaudeSidebar.tsx      # Authentic Claude collapsible navigation sidebar
-│   │   ├── ClaudeComposer.tsx     # Claude floating composer with pills, model tags & voice action
-│   │   ├── ChatWindow.tsx         # Claude conversation canvas & greeting state
-│   │   ├── MessageBubble.tsx      # Typographic Claude message blocks with terracotta asterisk
-│   │   ├── TelemetryPanel.tsx     # Floating diagnostics popover modal
+│   │   ├── ChatWindow.tsx         # Enterprise SaaS workspace (70/30 layout)
+│   │   ├── ChatComposer.tsx       # Bottom floating input composer with language selector
+│   │   ├── MessageBubble.tsx      # High-contrast customer and AI message typography
+│   │   ├── OperationsPanel.tsx    # Right 30% AI Operations panel (Intent, Retrieval, Gemini, Safety)
 │   │   ├── ConfidenceBadge.tsx    # Progress-bar confidence indicator
 │   │   ├── EscalationAlert.tsx    # Human supervisor alert
 │   │   └── IntentCard.tsx         # Telemetry intent diagnostics row

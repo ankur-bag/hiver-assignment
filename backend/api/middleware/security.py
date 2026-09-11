@@ -68,8 +68,8 @@ class RequestContextAndSecurityMiddleware(BaseHTTPMiddleware):
         if forwarded_for:
             client_ip = forwarded_for.split(",")[0].strip()
 
-        # 3. Apply rate limiting to /api/v1/chat or legacy /chat
-        if request.url.path.endswith("/chat") and request.method == "POST":
+        # 3. Apply rate limiting to /api/v1/chat and /api/v1/chat/stream
+        if (request.url.path.endswith("/chat") or request.url.path.endswith("/chat/stream")) and request.method == "POST":
             if not _global_rate_limiter.is_allowed(client_ip):
                 logger.warning(
                     '{"request_id": "%s", "endpoint": "%s", "latency_ms": 0, "status": 429, "error_type": "RateLimitExceeded"}',
@@ -93,6 +93,14 @@ class RequestContextAndSecurityMiddleware(BaseHTTPMiddleware):
         try:
             response: Response = await call_next(request)
             status_code = response.status_code
+
+            # 5. Inject response headers
+            response.headers["X-Request-ID"] = req_id
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            return response
         except Exception as exc:
             error_type = exc.__class__.__name__
             raise exc
@@ -114,10 +122,3 @@ class RequestContextAndSecurityMiddleware(BaseHTTPMiddleware):
             else:
                 logger.info(log_data)
 
-        # 5. Inject response headers
-        response.headers["X-Request-ID"] = req_id
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        return response

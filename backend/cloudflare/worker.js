@@ -13,6 +13,22 @@ export default {
     const BACKEND_URL = env.BACKEND_API_URL || "http://localhost:8000";
     const url = new URL(request.url);
 
+    // If running in production mode and BACKEND_API_URL is missing, fail clearly
+    if (env.ENVIRONMENT === "production" && !env.BACKEND_API_URL) {
+      return new Response(
+        JSON.stringify({
+          error: "Edge Gateway: BACKEND_API_URL environment variable is not configured.",
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...getCorsHeaders(request),
+          },
+        }
+      );
+    }
+
     // 1. CORS Preflight Handling (OPTIONS)
     if (request.method === "OPTIONS") {
       return handleOptions(request);

@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { ChatMessage, ChatResponsePayload, ServiceHealth } from '../types/chat';
-import { sendChatMessage, checkBackendHealth } from '../services/api';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  ChatMessage,
+  ChatResponsePayload,
+  ServiceHealth,
+  StreamMetadataPayload,
+  StreamCompletePayload,
+} from '../types/chat';
+import { streamChatMessage, checkBackendHealth } from '../services/api';
+
+export type StreamingStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error' | 'aborted';
 
 /**
- * Custom React Hook for Chat State Management (Addon 6).
- * Encapsulates messages, loading, errors, retry logic, and backend health status.
+ * Custom React Hook for Chat State Management.
+ * Encapsulates real HTTP token streaming, AbortController cancellation,
+ * progressive message building, telemetry inspection, and backend health status.
  */
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -18,10 +27,14 @@ export function useChat() {
     },
   ]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [streamingStatus, setStreamingStatus] = useState<StreamingStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [health, setHealth] = useState<ServiceHealth>({ status: 'healthy' });
   const [activeAnalysis, setActiveAnalysis] = useState<ChatResponsePayload | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Initialize session ID on mount
   useEffect(() => {
@@ -36,10 +49,33 @@ export function useChat() {
     checkBackendHealth().then((h) => setHealth(h));
   }, []);
 
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setIsStreaming(false);
+    setStreamingStatus('aborted');
+
+    // Mark any active streaming message as non-streaming
+    setMessages((prev) =>
+      prev.map((msg) => (msg.isStreaming ? { ...msg, isStreaming: false } : msg))
+    );
+  }, []);
+
   const sendMessage = useCallback(
     async (text: string, manualLang?: string) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
+
+      // Abort any existing stream
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       const userMsgId = 'msg-' + Date.now();
       const userMessage: ChatMessage = {
@@ -49,55 +85,170 @@ export function useChat() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setMessages((prev) => [...prev, userMessage]);
+      const agentMsgId = 'agent-' + (Date.now() + 1);
+      const placeholderAgentMessage: ChatMessage = {
+        id: agentMsgId,
+        sender: 'agent',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isStreaming: true,
+      };
+
+      setMessages((prev) => [...prev, userMessage, placeholderAgentMessage]);
       setLoading(true);
+      setIsStreaming(true);
+      setStreamingStatus('connecting');
       setError(null);
 
+      // Pre-populate analysis panel with awaiting state
+      setActiveAnalysis({
+        reply: '',
+        intent: 'ANALYZING...',
+        confidence: 0,
+        retrieved_cases: 0,
+        escalate: false,
+        language: manualLang || 'detecting',
+        session_id: sessionId,
+        request_id: '',
+        telemetry: {},
+      });
+
+      let accumulatedText = '';
+
       try {
-        const responseData = await sendChatMessage(trimmed, sessionId, manualLang);
+        await streamChatMessage(
+          trimmed,
+          sessionId,
+          manualLang,
+          {
+            onMetadata: (metadata: StreamMetadataPayload) => {
+              setStreamingStatus('streaming');
 
-        // Update active session ID if server returned one
-        if (responseData.session_id && responseData.session_id !== sessionId) {
-          setSessionId(responseData.session_id);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('hiver_chat_session', responseData.session_id);
-          }
-        }
+              // Immediately populate AI Analysis panel with classified intent & retrieval count
+              setActiveAnalysis((prev) => ({
+                reply: accumulatedText,
+                intent: metadata.intent,
+                confidence: metadata.confidence,
+                retrieved_cases: metadata.retrieved_cases,
+                escalate: prev?.escalate || false,
+                language: metadata.language,
+                session_id: metadata.session_id || sessionId,
+                request_id: metadata.request_id,
+                telemetry: { request_id: metadata.request_id },
+              }));
 
-        // Store active analysis telemetry for side inspection panel
-        setActiveAnalysis(responseData);
+              if (metadata.session_id && metadata.session_id !== sessionId) {
+                setSessionId(metadata.session_id);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('hiver_chat_session', metadata.session_id);
+                }
+              }
 
-        const agentMessage: ChatMessage = {
-          id: 'agent-' + Date.now(),
-          sender: 'agent',
-          text: responseData.reply,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          intent: responseData.intent,
-          confidence: responseData.confidence,
-          retrieved_cases: responseData.retrieved_cases,
-          escalate: responseData.escalate,
-          escalation_reason: responseData.escalation_reason,
-          language: responseData.language,
-          request_id: responseData.request_id,
-          telemetry: responseData.telemetry,
-        };
+              // Update agent placeholder with initial metadata
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === agentMsgId
+                    ? {
+                        ...msg,
+                        intent: metadata.intent,
+                        confidence: metadata.confidence,
+                        retrieved_cases: metadata.retrieved_cases,
+                        language: metadata.language,
+                        request_id: metadata.request_id,
+                      }
+                    : msg
+                )
+              );
+            },
+            onToken: (tokenText: string) => {
+              accumulatedText += tokenText;
+              setStreamingStatus('streaming');
 
-        setMessages((prev) => [...prev, agentMessage]);
+              // Efficient token chunk appending
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === agentMsgId
+                    ? { ...msg, text: msg.text + tokenText }
+                    : msg
+                )
+              );
+            },
+            onComplete: (completeData: StreamCompletePayload) => {
+              setStreamingStatus('completed');
+              setIsStreaming(false);
+
+              // Update final authoritative message details
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === agentMsgId
+                    ? {
+                        ...msg,
+                        isStreaming: false,
+                        intent: completeData.intent,
+                        confidence: completeData.confidence,
+                        retrieved_cases: completeData.retrieved_cases,
+                        escalate: completeData.escalate,
+                        escalation_reason: completeData.escalation_reason,
+                        language: completeData.language,
+                        telemetry: completeData.telemetry,
+                      }
+                    : msg
+                )
+              );
+
+              // Finalize side inspection telemetry
+              setActiveAnalysis({
+                reply: accumulatedText,
+                intent: completeData.intent,
+                confidence: completeData.confidence,
+                retrieved_cases: completeData.retrieved_cases,
+                escalate: completeData.escalate,
+                escalation_reason: completeData.escalation_reason,
+                language: completeData.language,
+                session_id: completeData.session_id || sessionId,
+                request_id: completeData.telemetry?.request_id || '',
+                telemetry: completeData.telemetry,
+              });
+            },
+            onError: (err: Error) => {
+              setStreamingStatus('error');
+              setIsStreaming(false);
+              const errorMsg = err.message || 'Support service temporarily unavailable';
+              setError(errorMsg);
+
+              // If assistant message was empty, remove it and add system error
+              setMessages((prev) => {
+                const target = prev.find((m) => m.id === agentMsgId);
+                if (target && !target.text.trim()) {
+                  return [
+                    ...prev.filter((m) => m.id !== agentMsgId),
+                    {
+                      id: 'err-' + Date.now(),
+                      sender: 'system',
+                      text: `⚠️ ${errorMsg}`,
+                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      error: true,
+                    },
+                  ];
+                }
+                return prev.map((m) => (m.id === agentMsgId ? { ...m, isStreaming: false } : m));
+              });
+            },
+          },
+          controller.signal
+        );
       } catch (err: any) {
-        const errorMsg = err.message || 'Unable to connect to AI Support Service';
-        setError(errorMsg);
-
-        const systemErrMsg: ChatMessage = {
-          id: 'err-' + Date.now(),
-          sender: 'system',
-          text: `⚠️ ${errorMsg}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          error: true,
-        };
-
-        setMessages((prev) => [...prev, systemErrMsg]);
+        if (err.name === 'AbortError') {
+          setStreamingStatus('aborted');
+        } else {
+          setStreamingStatus('error');
+          const errorMsg = err.message || 'Unable to connect to AI Support Service';
+          setError(errorMsg);
+        }
       } finally {
         setLoading(false);
+        setIsStreaming(false);
+        abortControllerRef.current = null;
       }
     },
     [loading, sessionId]
@@ -112,6 +263,7 @@ export function useChat() {
   }, [messages, sendMessage]);
 
   const clearChat = useCallback(() => {
+    stopGeneration();
     const newSession = Math.random().toString(36).substring(2, 10);
     setSessionId(newSession);
     if (typeof window !== 'undefined') {
@@ -127,17 +279,22 @@ export function useChat() {
     ]);
     setActiveAnalysis(null);
     setError(null);
-  }, []);
+    setStreamingStatus('idle');
+  }, [stopGeneration]);
 
   return {
     messages,
     loading,
+    isStreaming,
+    streamingStatus,
     error,
     sessionId,
     health,
     activeAnalysis,
     sendMessage,
+    stopGeneration,
     retryLastMessage,
     clearChat,
   };
 }
+
