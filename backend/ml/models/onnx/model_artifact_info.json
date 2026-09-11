@@ -1,0 +1,15 @@
+{
+  "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
+  "format": "ONNX FP32",
+  "filename": "model.onnx",
+  "size_bytes": 470295205,
+  "sha256": "646856e76f58fd58a4a45a6e11d2efdb328cbda98190b895955a78d37d011c94",
+  "r2_storage": {
+    "bucket": "hiver-models",
+    "prefix": "production/paraphrase-multilingual-MiniLM-L12-v2",
+    "key": "production/paraphrase-multilingual-MiniLM-L12-v2/model.onnx",
+    "logical_path": "hiver-models/production/paraphrase-multilingual-MiniLM-L12-v2/model.onnx"
+  },
+  "embedding_dimension": 384,
+  "normalized": true
+}

@@ -1,0 +1,20 @@
+{
+  "evaluation_samples": 2000,
+  "baseline": {
+    "accuracy": 0.982,
+    "weighted_f1": 0.982,
+    "latency_ms_per_sample": 12.1
+  },
+  "onnx_fp32": {
+    "accuracy": 0.982,
+    "weighted_f1": 0.982,
+    "agreement_with_baseline_pct": 100.0,
+    "latency_ms_per_sample": 16.58
+  },
+  "onnx_int8": {
+    "accuracy": 0.9555,
+    "weighted_f1": 0.9556,
+    "agreement_with_baseline_pct": 96.3,
+    "latency_ms_per_sample": 10.32
+  }
+}

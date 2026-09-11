@@ -1,13 +1,13 @@
 """
 Intent Inference Engine.
 Provides production-grade inference, confidence calculation, batch prediction,
-fallback handling, and input validation.
+fallback handling, and input validation using lightweight NumPy matrix operations.
 """
 
+import json
 import logging
 from threading import Lock
 from typing import Any, Dict, List, Optional
-import joblib
 import numpy as np
 
 from ml.config import MLConfig, config as default_config
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 class IntentClassifierService:
     """
     Production Intent Inference Service.
-    Loads the trained Logistic Regression model and connects it with
-    SentenceTransformer embeddings to generate intent classifications and confidence scores.
+    Loads the trained model weights and connects with ONNX normalized embeddings
+    to generate intent classifications and confidence scores using pure NumPy.
     """
 
     def __init__(
@@ -34,24 +34,43 @@ class IntentClassifierService:
         self._load_model()
 
     def _load_model(self) -> None:
-        """Loads and verifies the serialized intent classification model artifact."""
-        model_path = self.config.CLASSIFIER_PATH
-        if not model_path.exists():
+        """Loads and verifies the serialized intent classification weights artifact."""
+        weights_path = self.config.WEIGHTS_PATH
+        pkl_path = self.config.CLASSIFIER_PATH
+
+        if weights_path.exists():
+            logger.info(f"Loading lightweight classifier weights from {weights_path}...")
+            weights = np.load(weights_path, allow_pickle=True)
+            self.classes_ = list(weights["classes"].astype(str))
+            self.coef_ = weights["coef"].astype(np.float32)
+            self.intercept_ = weights["intercept"].astype(np.float32)
+            self._uses_sklearn = False
+            logger.info(f"NumPy intent classifier loaded successfully with classes: {self.classes_}")
+        elif pkl_path.exists():
+            logger.info(f"Loading legacy intent classifier from {pkl_path}...")
+            import joblib
+            self.model = joblib.load(pkl_path)
+            self.classes_ = list(self.model.classes_)
+            self.coef_ = self.model.coef_.astype(np.float32)
+            self.intercept_ = self.model.intercept_.astype(np.float32)
+            self._uses_sklearn = False
+            logger.info(f"Intent classifier loaded successfully with classes: {self.classes_}")
+        else:
             raise FileNotFoundError(
-                f"Model artifact not found at {model_path}. "
-                "Ensure training has been completed and model is saved."
+                f"No classifier artifacts found at {weights_path} or {pkl_path}."
             )
-        
-        logger.info(f"Loading intent classifier from {model_path}...")
-        self.model = joblib.load(model_path)
-        
-        if not hasattr(self.model, "classes_"):
-            raise ValueError("Loaded model lacks 'classes_' attribute.")
-        if not hasattr(self.model, "predict_proba"):
-            raise ValueError("Loaded model does not support 'predict_proba'.")
-            
-        self.classes_ = list(self.model.classes_)
-        logger.info(f"Intent classifier loaded successfully with classes: {self.classes_}")
+
+    def _predict_proba(self, embeddings: np.ndarray) -> np.ndarray:
+        """
+        Pure NumPy Softmax classification:
+        logits = embeddings @ coef_.T + intercept_
+        probabilities = softmax(logits)
+        """
+        logits = np.dot(embeddings, self.coef_.T) + self.intercept_
+        # Numerical stability shift
+        exp_logits = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
+        probabilities = exp_logits / np.sum(exp_logits, axis=-1, keepdims=True)
+        return probabilities
 
     def predict(
         self,
@@ -108,8 +127,8 @@ class IntentClassifierService:
         embedding = self.encoder.encode(cleaned, show_progress_bar=False)
         embedding_2d = np.expand_dims(embedding, axis=0)  # Shape (1, 384)
 
-        # Compute class probabilities
-        probabilities = self.model.predict_proba(embedding_2d)[0]
+        # Compute class probabilities via NumPy softmax
+        probabilities = self._predict_proba(embedding_2d)[0]
         best_idx = int(np.argmax(probabilities))
         predicted_intent = str(self.classes_[best_idx])
         raw_confidence = float(probabilities[best_idx])
@@ -157,7 +176,6 @@ class IntentClassifierService:
         if not texts:
             return []
 
-        # Validate and clean all queries
         cleaned_list = []
         valid_indices = []
         invalid_results: Dict[int, Dict[str, Any]] = {}
@@ -185,10 +203,9 @@ class IntentClassifierService:
         for idx, res in invalid_results.items():
             results[idx] = res
 
-        # If any valid texts, encode and predict in batch
         if cleaned_list:
             embeddings = self.encoder.encode(cleaned_list, batch_size=batch_size, show_progress_bar=False)
-            proba_batch = self.model.predict_proba(embeddings)
+            proba_batch = self._predict_proba(embeddings)
 
             for original_idx, probs in zip(valid_indices, proba_batch):
                 best_idx = int(np.argmax(probs))

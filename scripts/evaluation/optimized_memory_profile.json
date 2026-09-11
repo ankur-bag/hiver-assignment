@@ -1,0 +1,11 @@
+{
+  "0_initial_rss_mb": 19.07,
+  "1_after_onnx_imports_mb": 51.35,
+  "2_after_onnx_model_load_mb": 763.36,
+  "3_after_first_embedding_mb": 764.79,
+  "4_after_classifier_load_mb": 765.71,
+  "5_after_first_prediction_mb": 765.78,
+  "6_after_10_sequential_predictions_mb": 766.04,
+  "total_growth_mb": 746.97,
+  "peak_rss_mb": 766.04
+}

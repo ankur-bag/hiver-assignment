@@ -1,0 +1,103 @@
+{
+  "num_queries": 17,
+  "embedding_dim": 384,
+  "fp32": {
+    "mean_cosine_similarity": 1.0,
+    "min_cosine_similarity": 0.9999998807907104,
+    "max_cosine_similarity": 1.0000001192092896,
+    "mean_norm": 1.0
+  },
+  "int8": {
+    "mean_cosine_similarity": 0.9947985410690308,
+    "min_cosine_similarity": 0.9899855256080627,
+    "max_cosine_similarity": 0.9969232082366943,
+    "mean_norm": 1.0
+  },
+  "per_query_results": [
+    {
+      "query": "Where is my package? It was supposed to arrive yesterday.",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9958282709121704
+    },
+    {
+      "query": "I need a refund for my cancelled order #108-9812",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.995649516582489
+    },
+    {
+      "query": "Someone compromised my account with unauthorized orders",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9947063326835632
+    },
+    {
+      "query": "The item delivered is defective and damaged",
+      "fp32_cosine_sim": 0.9999998807907104,
+      "int8_cosine_sim": 0.9943786859512329
+    },
+    {
+      "query": "How can I return an item I received last week?",
+      "fp32_cosine_sim": 0.9999999403953552,
+      "int8_cosine_sim": 0.99583899974823
+    },
+    {
+      "query": "I want to speak with a human agent or manager immediately",
+      "fp32_cosine_sim": 1.0000001192092896,
+      "int8_cosine_sim": 0.9954153299331665
+    },
+    {
+      "query": "Mera package delay ho gaya hai abhi tak nahi aaya",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9899855256080627
+    },
+    {
+      "query": "Mera order deliver nahi hua",
+      "fp32_cosine_sim": 0.9999998807907104,
+      "int8_cosine_sim": 0.9906579852104187
+    },
+    {
+      "query": "Mujhe refund kab milega mere order ka?",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9939181804656982
+    },
+    {
+      "query": "Mera account hack ho gaya hai",
+      "fp32_cosine_sim": 0.9999999403953552,
+      "int8_cosine_sim": 0.9924479126930237
+    },
+    {
+      "query": "Mi paquete no ha llegado todav\u00eda, est\u00e1 retrasado",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9957104325294495
+    },
+    {
+      "query": "Necesito un reembolso de mi dinero por favor",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9969232082366943
+    },
+    {
+      "query": "No puedo entrar a mi cuenta de Amazon",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.996802806854248
+    },
+    {
+      "query": "Mon colis n'est pas encore arriv\u00e9",
+      "fp32_cosine_sim": 0.9999998807907104,
+      "int8_cosine_sim": 0.9955103993415833
+    },
+    {
+      "query": "Je souhaite obtenir un remboursement pour ma commande",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9955952167510986
+    },
+    {
+      "query": "Wo ist meine Bestellung? Das Paket ist versp\u00e4tet",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.996196985244751
+    },
+    {
+      "query": "Mein Konto ist gesperrt, ich kann mich nicht einloggen",
+      "fp32_cosine_sim": 1.0,
+      "int8_cosine_sim": 0.9960098266601562
+    }
+  ]
+}

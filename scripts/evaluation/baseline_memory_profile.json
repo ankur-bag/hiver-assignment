@@ -1,0 +1,11 @@
+{
+  "0_initial_rss_mb": 19.09,
+  "1_after_numpy_sklearn_mb": 153.09,
+  "2_after_torch_sentence_transformers_import_mb": 455.94,
+  "3_after_model_load_mb": 1209.88,
+  "4_after_first_embedding_mb": 1214.98,
+  "5_after_classifier_load_mb": 1217.15,
+  "6_after_first_full_prediction_mb": 1217.21,
+  "total_growth_mb": 1198.12,
+  "peak_rss_mb": 1217.21
+}

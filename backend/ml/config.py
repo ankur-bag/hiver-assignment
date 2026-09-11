@@ -28,9 +28,12 @@ class MLConfig:
     # Embedding dimension for MiniLM-L12-v2
     EMBEDDING_DIMENSION: int = 384
 
-    # Classifier model artifact path
+    # Classifier model artifact paths
     CLASSIFIER_PATH: Path = field(
         default_factory=lambda: MODELS_DIR / "embedding_intent_classifier.pkl"
+    )
+    WEIGHTS_PATH: Path = field(
+        default_factory=lambda: MODELS_DIR / "classifier_weights.npz"
     )
 
     # Label mapping path

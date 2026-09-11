@@ -4,7 +4,7 @@ A production-grade, end-to-end AI Customer Support Agent built for the **Hiver**
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 ```
                                   +-----------------------------+
@@ -63,7 +63,7 @@ A production-grade, end-to-end AI Customer Support Agent built for the **Hiver**
 
 ---
 
-## 🚀 Key Features
+##  Key Features
 
 1. **Multilingual Intent Intelligence (Phase 1):**
    - Trained on **52,124** clean customer support conversations from AmazonHelp.
@@ -84,17 +84,18 @@ A production-grade, end-to-end AI Customer Support Agent built for the **Hiver**
 
 4. **Production API & Edge Gateway (Phase 4):**
    - **Backend Service Layer Separation:** Complete separation between HTTP transport, business chat service, and RAG orchestrator.
-   - **API Versioning:** Strict `/api/v1/chat` and `/api/v1/health` contracts.
+   - **API Versioning & Streaming:** Strict `/api/v1/chat`, `/api/v1/chat/stream` (real-time SSE streaming), and `/api/v1/health` contracts.
+   - **Memory-Optimized ONNX Runtime:** Lightweight `onnxruntime` + Rust `tokenizers` embedding pipeline with standalone NumPy classifier (`classifier_weights.npz`), reducing memory consumption by over 75% for Render Free (<512 MiB limit, zero PyTorch/SentenceTransformers runtime dependencies).
    - **Structured Logging:** Zero-PII logging of `request_id`, `endpoint`, `latency_ms`, `status`, and `error_type`.
    - **Centralized Error Handling:** Clean client-safe JSON responses, masking internal stack traces.
    - **Sliding-Window Rate Limiting:** 60 requests/minute per client IP.
-   - **Cloudflare Worker Adapter:** Edge gateway forwarding requests with zero-latency preflight CORS handling.
-   - **Dockerized Container:** Lightweight `backend/Dockerfile` ready for deployment on AWS ECS, GCP Cloud Run, or Fly.io.
+   - **Cloudflare Worker Adapter:** Edge gateway forwarding requests with zero-latency preflight CORS handling, unbuffered SSE streaming passthrough, and optional Turnstile verification.
+   - **Dockerized Container:** Lightweight `backend/Dockerfile` based on `python:3.11-slim` with zero CUDA dependencies.
    - **Interactive Next.js Frontend:** Real-time split-screen chat interface displaying live inference telemetry, intent classification badges, confidence progress bars, Pinecone case match counters, and human escalation alerts.
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```
 hiver-assignment/
@@ -169,7 +170,7 @@ hiver-assignment/
 
 ---
 
-## 🛠️ Installation & Setup
+##  Installation & Setup
 
 ### 1. Prerequisites
 - Python 3.10+ (tested on Python 3.11 - 3.14)
@@ -228,7 +229,7 @@ Open `http://localhost:3000` in your browser to interact with the support assist
 
 ---
 
-## 🔌 API Reference
+##  API Reference
 
 ### Health Check
 `GET /api/v1/health`
@@ -283,9 +284,17 @@ Open `http://localhost:3000` in your browser to interact with the support assist
 }
 ```
 
+### Real-time SSE Streaming Chat
+`POST /api/v1/chat/stream`
+
+Returns Server-Sent Events (`text/event-stream`) delivering:
+1. `event: metadata` – Intent, confidence, retrieval count, escalation status, request ID.
+2. `event: token` – Progressive token chunks from Gemini synthesis.
+3. `event: complete` – Full response summary and latency telemetry.
+
 ---
 
-## 🧪 Automated Testing
+##  Automated Testing
 
 The repository contains 48 unit, integration, and end-to-end tests covering all layers.
 
@@ -303,26 +312,54 @@ Test coverage includes:
 
 ---
 
-## 🐳 Docker Deployment
+##  Docker & Cloudflare R2 Production Deployment
 
-Build and run the backend using Docker:
+The production backend runs a memory-optimized ONNX FP32 runtime (<272 MB peak RSS, zero PyTorch/CUDA dependencies).
 
+Because the FP32 ONNX model binary (`model.onnx`, 448.51 MB) exceeds standard GitHub repository size limits, it is stored durably in **Cloudflare R2** and downloaded during the **Docker build phase** with strict SHA-256 verification, ensuring zero runtime download latency on Render startup.
+
+### Artifact Metadata:
+- **R2 Bucket Path:** `hiver-models/production/paraphrase-multilingual-MiniLM-L12-v2/model.onnx`
+- **File Size:** 470,295,205 bytes (448.51 MB)
+- **SHA-256 Checksum:** `646856e76f58fd58a4a45a6e11d2efdb328cbda98190b895955a78d37d011c94`
+
+### Docker Build with R2 Model Download:
 ```bash
-# Build Docker image
-docker build -t hiver-ai-support backend/
+# Build Docker image fetching model artifact from Cloudflare R2 during build:
+docker build \
+  --build-arg MODEL_ONNX_URL="https://pub-r2.example.com/hiver-models/production/paraphrase-multilingual-MiniLM-L12-v2/model.onnx" \
+  --build-arg MODEL_ONNX_SHA256="646856e76f58fd58a4a45a6e11d2efdb328cbda98190b895955a78d37d011c94" \
+  -t hiver-ai-support backend/
 
 # Run container with environment variables
 docker run -d -p 8000:8000 \
   -e PINECONE_API_KEY="your_pinecone_key" \
   -e GEMINI_API_KEY="your_gemini_key" \
+  -e WEB_CONCURRENCY=1 \
   hiver-ai-support
 ```
 
 ---
 
-## ☁️ Cloudflare Worker Edge Proxy
+##  Real-Time Streaming Architecture
+The production streaming pipeline is built with real-time progressive token delivery:
+```
+Gemini Native Streaming (stream_generate_content)
+       ↓
+FastAPI StreamingResponse (text/event-stream)
+       ↓
+SSE Protocol (metadata → token → complete)
+       ↓
+Cloudflare Worker (unbuffered backendResponse.body passthrough)
+       ↓
+Next.js Frontend (ReadableStream reader & React state update)
+```
 
-Deploy the Cloudflare Worker edge adapter to provide global low-latency proxying:
+---
+
+##  Cloudflare Worker Edge Proxy
+
+Deploy the Cloudflare Worker edge adapter to provide global low-latency proxying, CORS preflight handling, and optional Turnstile verification:
 
 ```bash
 cd backend/cloudflare
@@ -336,7 +373,7 @@ npx wrangler deploy
 
 ---
 
-## 📈 Evaluation & Benchmark Reports
+##  Evaluation & Benchmark Reports
 
 Machine-readable evaluation reports are available in `reports/`:
 - `reports/accuracy_report.md`: 98.07% accuracy, precision, recall, and F1-scores for intent classification.

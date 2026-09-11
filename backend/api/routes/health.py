@@ -14,9 +14,9 @@ router = APIRouter(tags=["Health"])
 def health_check():
     """
     Returns operational status of the service and its AI subsystems.
-    Implements Addon 5: Never fails completely if optional services are degraded.
+    Does not run expensive model inference on health checks to ensure fast response.
     """
-    model_loaded = ml_config.CLASSIFIER_PATH.exists()
+    model_loaded = ml_config.WEIGHTS_PATH.exists() or ml_config.CLASSIFIER_PATH.exists()
     pinecone_configured = bool(os.getenv("PINECONE_API_KEY"))
     gemini_configured = bool(os.getenv("GEMINI_API_KEY"))
 

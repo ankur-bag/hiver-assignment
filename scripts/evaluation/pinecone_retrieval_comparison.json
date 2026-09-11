@@ -1,0 +1,85 @@
+{
+  "num_queries": 7,
+  "fp32": {
+    "top1_agreement_pct": 100.0,
+    "mean_top3_overlap_pct": 100.0,
+    "mean_top5_overlap_pct": 100.0
+  },
+  "int8": {
+    "top1_agreement_pct": 85.71,
+    "mean_top3_overlap_pct": 85.71,
+    "mean_top5_overlap_pct": 94.29
+  },
+  "details": [
+    {
+      "query": "My package has not arrived yet",
+      "baseline_top_id": "case_011693",
+      "fp32_top_id": "case_011693",
+      "int8_top_id": "case_011693",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 0.6666666666666666,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 1.0
+    },
+    {
+      "query": "Where is my refund?",
+      "baseline_top_id": "case_020868",
+      "fp32_top_id": "case_020868",
+      "int8_top_id": "case_020868",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 0.6666666666666666,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 0.8
+    },
+    {
+      "query": "I cannot access my account",
+      "baseline_top_id": "case_016590",
+      "fp32_top_id": "case_016590",
+      "int8_top_id": "case_016590",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 1.0,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 1.0
+    },
+    {
+      "query": "My order is delayed",
+      "baseline_top_id": "case_015348",
+      "fp32_top_id": "case_015348",
+      "int8_top_id": "case_015348",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 0.6666666666666666,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 0.8
+    },
+    {
+      "query": "Someone accessed my account",
+      "baseline_top_id": "case_036273",
+      "fp32_top_id": "case_036273",
+      "int8_top_id": "case_036273",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 1.0,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 1.0
+    },
+    {
+      "query": "Mera parcel abhi tak nahi aaya",
+      "baseline_top_id": "case_003869",
+      "fp32_top_id": "case_003869",
+      "int8_top_id": "case_003869",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 1.0,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 1.0
+    },
+    {
+      "query": "Necesito ayuda con mi pedido",
+      "baseline_top_id": "case_040620",
+      "fp32_top_id": "case_040620",
+      "int8_top_id": "case_019103",
+      "fp32_top3_overlap": 1.0,
+      "int8_top3_overlap": 1.0,
+      "fp32_top5_overlap": 1.0,
+      "int8_top5_overlap": 1.0
+    }
+  ]
+}

@@ -54,8 +54,12 @@ env/
 *.pkl
 *.joblib
 
-# Required production intent classifier
+# Required production intent classifier artifacts (weights & metadata)
 !backend/ml/models/embedding_intent_classifier.pkl
+!backend/ml/models/classifier_weights.npz
+!backend/ml/models/label_map.json
+!backend/ml/models/model_metadata.json
+!backend/ml/models/onnx/*.json
 
 
 # =========================
@@ -71,6 +75,7 @@ env/
 
 *.npy
 *.npz
+!backend/ml/models/classifier_weights.npz
 *.faiss
 
 
