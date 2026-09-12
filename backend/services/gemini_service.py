@@ -12,6 +12,8 @@ from typing import Any, Iterator, Optional
 
 import httpcore
 import httpx
+import queue
+import threading
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -91,6 +93,53 @@ def _is_transient(exc: Exception) -> bool:
     return any(token in value for token in ("readtimeout", "timeout", "timed out", "connection", "500", "502", "503", "504", "unavailable"))
 
 
+def _stream_with_timeout(
+    stream_fn,
+    first_token_timeout: float,
+    chunk_timeout: float,
+):
+    """
+    Wraps a streaming generator so that the first chunk/token must arrive within first_token_timeout,
+    and subsequent chunks within chunk_timeout.
+    """
+    chunk_queue = queue.Queue(maxsize=32)
+    _SENTINEL = object()
+    stop_event = threading.Event()
+
+    def _producer():
+        try:
+            stream = stream_fn()
+            for item in stream:
+                if stop_event.is_set():
+                    break
+                chunk_queue.put((item, None))
+            chunk_queue.put((_SENTINEL, None))
+        except Exception as exc:
+            chunk_queue.put((_SENTINEL, exc))
+
+    producer_thread = threading.Thread(target=_producer, daemon=True)
+    producer_thread.start()
+
+    is_first = True
+    while True:
+        timeout = first_token_timeout if is_first else chunk_timeout
+        try:
+            item, exc = chunk_queue.get(timeout=timeout)
+            if exc is not None:
+                stop_event.set()
+                raise exc
+            if item is _SENTINEL:
+                break
+            is_first = False
+            yield item
+        except queue.Empty:
+            stop_event.set()
+            if is_first:
+                raise TimeoutError(f"Stream first token timed out after {first_token_timeout:.1f}s")
+            else:
+                raise TimeoutError(f"Stream chunk timed out after {chunk_timeout:.1f}s")
+
+
 class GeminiFileSearchService:
     def __init__(
         self,
@@ -98,13 +147,21 @@ class GeminiFileSearchService:
         store_name: Optional[str] = None,
         model_name: Optional[str] = None,
         fallback_model_name: Optional[str] = None,
-        timeout_seconds: Optional[float] = None
+        timeout_seconds: Optional[float] = None,
+        primary_first_token_timeout: Optional[float] = None,
+        fallback_timeout: Optional[float] = None,
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.store_name = store_name or os.getenv("GEMINI_FILE_SEARCH_STORE")
-        self.model_name = model_name or os.getenv("GEMINI_GENERATION_MODEL", "gemini-3.6-flash")
+        self.model_name = model_name or os.getenv("GEMINI_GENERATION_MODEL", "gemini-3.5-flash-lite")
         self.fallback_model_name = fallback_model_name or os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
         self.timeout_seconds = float(timeout_seconds or os.getenv("GEMINI_CHAT_TIMEOUT_SECONDS", "22.0"))
+        self.primary_first_token_timeout = float(
+            primary_first_token_timeout or os.getenv("GEMINI_PRIMARY_FIRST_TOKEN_TIMEOUT_SECONDS", "9.0")
+        )
+        self.fallback_timeout = float(
+            fallback_timeout or os.getenv("GEMINI_FALLBACK_TIMEOUT_SECONDS", "15.0")
+        )
         self._client = None
 
     @property
@@ -140,20 +197,23 @@ class GeminiFileSearchService:
             except Exception as exc:
                 if _is_permanent_quota(exc):
                     raise ProviderQuotaError("AI service quota is exhausted; please try again later") from exc
-                if not _is_transient(exc) or attempt == 1:
-                    if _is_transient(exc):
-                        raise ProviderTransientError("AI service is temporarily unavailable") from exc
+                if not _is_transient(exc):
                     raise ProviderError(f"AI service request failed: {exc}") from exc
+                if attempt == 1:
+                    raise ProviderTransientError("AI service is temporarily unavailable") from exc
                 time.sleep(0.4)
         raise ProviderTransientError("AI service is temporarily unavailable")
 
-    @staticmethod
-    def _grounding(response: Any) -> tuple[list[dict[str, Any]], list[str]]:
-        metadata: list[dict[str, Any]] = []
-        context: list[str] = []
+    def _grounding(self, response: Any) -> tuple[list[dict[str, Any]], list[str]]:
+        metadata = []
+        context = []
         candidates = getattr(response, "candidates", None) or []
-        grounding = getattr(candidates[0], "grounding_metadata", None) if candidates else None
-        for chunk in (getattr(grounding, "grounding_chunks", None) or []):
+        if not candidates:
+            return metadata, context
+        grounding = getattr(candidates[0], "grounding_metadata", None)
+        if not grounding:
+            return metadata, context
+        for chunk in getattr(grounding, "grounding_chunks", None) or []:
             retrieved = getattr(chunk, "retrieved_context", None)
             if not retrieved:
                 continue
@@ -176,9 +236,8 @@ class GeminiFileSearchService:
     ) -> Iterator[tuple[Optional[str], list[dict[str, Any]], Optional[str]]]:
         """
         High-performance single-pass streaming with Gemini File Search.
-        Supports automatic fallback from primary model (e.g. gemini-3.6-flash) to
-        fallback model (e.g. gemini-3.5-flash-lite) on ReadTimeout/503 ONLY BEFORE the
-        first customer-visible token has been emitted.
+        Supports automatic fallback from primary model to fallback model on
+        ReadTimeout/503/Timeout ONLY BEFORE the first customer-visible token has been emitted.
         Yields: (user_visible_token, grounding_metadata_chunks, raw_chunk_text)
         """
         from google.genai import types
@@ -206,42 +265,31 @@ At the very end of your response, output exactly one intent tag on a new line:
         )
 
         def _get_stream(model: str):
-            return self._get_client().models.generate_content_stream(
+            return lambda: self._get_client().models.generate_content_stream(
                 model=model,
                 contents=f"Customer request: {query}\nSupport reply:",
                 config=config,
             )
 
         active_model = self.model_name
-        stream = None
         has_emitted_any_token = False
 
-        # 1. Attempt primary model stream initiation
-        try:
-            stream = _get_stream(active_model)
-        except Exception as exc:
-            if _is_permanent_quota(exc):
-                raise ProviderQuotaError("AI service quota is exhausted; please try again later") from exc
-            if not _is_transient(exc) or not self.fallback_model_name or self.fallback_model_name == active_model:
-                raise ProviderError(f"AI service stream request failed: {exc}") from exc
-
-            # Fallback before first token on stream initialization failure
-            logger.warning(
-                "Primary model %s failed on stream initialization (%s); invoking fallback model %s",
-                active_model, exc, self.fallback_model_name
+        def _build_stream(model: str):
+            first_timeout = (
+                self.primary_first_token_timeout
+                if model == self.model_name
+                else self.fallback_timeout
             )
-            active_model = self.fallback_model_name
-            try:
-                stream = _get_stream(active_model)
-            except Exception as fb_exc:
-                if _is_permanent_quota(fb_exc):
-                    raise ProviderQuotaError("AI service quota is exhausted; please try again later") from fb_exc
-                if _is_transient(fb_exc):
-                    raise ProviderTransientError("AI service is temporarily unavailable") from fb_exc
-                raise ProviderError(f"Fallback model request failed: {fb_exc}") from fb_exc
+            return _stream_with_timeout(
+                _get_stream(model),
+                first_token_timeout=first_timeout,
+                chunk_timeout=self.timeout_seconds,
+            )
 
-        # 2. Iterate through stream chunks
+        stream = _build_stream(active_model)
         bracket_buffer = ""
+
+        # Iterate through stream chunks with fallback protection
         while True:
             try:
                 for chunk in stream:
@@ -303,7 +351,7 @@ At the very end of your response, output exactly one intent tag on a new line:
                     active_model = self.fallback_model_name
                     bracket_buffer = ""
                     try:
-                        stream = _get_stream(active_model)
+                        stream = _build_stream(active_model)
                         continue
                     except Exception as fb_exc:
                         if _is_permanent_quota(fb_exc):

@@ -190,3 +190,47 @@ def test_fallback_failure_emits_error_once():
 
     error_events = [e for e in events if e["event"] == "error"]
     assert len(error_events) == 1
+
+
+def test_primary_first_token_timeout_triggers_fallback_with_no_interleaved_error():
+    import time
+    service = GeminiFileSearchService(
+        api_key="test_key",
+        store_name="fileSearchStores/test",
+        model_name="gemini-3.6-flash",
+        fallback_model_name="gemini-3.5-flash-lite",
+        primary_first_token_timeout=0.1,
+        fallback_timeout=2.0,
+        timeout_seconds=22.0
+    )
+
+    class Chunk:
+        def __init__(self, text):
+            self.text = text
+            self.candidates = []
+
+    def hanging_primary():
+        time.sleep(0.3)
+        yield Chunk("Late primary token")
+
+    def quick_fallback():
+        yield Chunk("Immediate fallback token. ")
+        yield Chunk("\n\n[INTENT: REFUND_PENDING]")
+
+    def mock_gen_stream(model, contents, config):
+        if model == "gemini-3.6-flash":
+            return hanging_primary()
+        return quick_fallback()
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content_stream = mock_gen_stream
+    service._get_client = MagicMock(return_value=mock_client)
+
+    rag = RAGService(service)
+    events = list(rag.chat_stream("Where is my refund?", "en"))
+
+    event_names = [e["event"] for e in events]
+    assert "error" not in event_names
+    assert "token" in event_names
+    assert events[-1]["event"] == "complete"
+    assert events[-1]["data"]["intent"] == "REFUND_PENDING"
