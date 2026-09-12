@@ -168,7 +168,7 @@ class RAGService:
                 yield {"event": "error", "data": {"code": exc.code, "message": str(exc), "request_id": request_id, "retryable": exc.retryable}}
             return
 
-        # Fast Single-Pass Streaming Path with Semantic Intent Extraction
+        # Fast Single-Pass Streaming Path with Progressive SSE Events
         try:
             analysis_start = time.perf_counter()
             lang = language or detect_language(query)
@@ -177,28 +177,36 @@ class RAGService:
             analysis_complete = time.perf_counter()
             analysis_ms = (analysis_complete - analysis_start) * 1000
 
-            # 1. Begin SSE early with instant metadata event
-            initial_metadata = {
-                "request_id": request_id,
-                "intent": "Analyzing...",
-                "language": lang,
-                "retrieved_context": "searching",
-                "retrieved_cases": 0,
-                "escalate": guardrail.should_escalate,
-                "escalation_reason": guardrail.reason,
-                "grounding_metadata": [],
-            }
-            yield {"event": "metadata", "data": initial_metadata}
+            # 1. Emit Stage 1: analyzing
+            yield {"event": "status", "data": {"stage": "analyzing", "request_id": request_id}}
 
-            # 2. Stream tokens directly from Gemini File Search
+            # If deterministic security rule fired immediately, emit escalation early
+            if guardrail.should_escalate:
+                yield {"event": "escalation", "data": {"escalate": True, "reason": guardrail.reason, "request_id": request_id}}
+
+            # 2. Emit Stage 2: retrieving (File Search store query begins)
+            yield {"event": "status", "data": {"stage": "retrieving", "request_id": request_id}}
+
+            # 3. Stream tokens directly from Gemini File Search
             generation_start = time.perf_counter()
             first_token_time = None
             raw_text_chunks = []
             grounding_chunks_accum = []
+            has_emitted_generating_status = False
 
             for token, g_chunks, raw_chunk in self.gemini_service.stream_chat(query, lang, lang_instruction):
                 if g_chunks:
                     grounding_chunks_accum.extend(g_chunks)
+                    yield {
+                        "event": "grounding",
+                        "data": {
+                            "retrieved_context_available": True,
+                            "retrieved_context_count": len(grounding_chunks_accum),
+                            "grounding_metadata": grounding_chunks_accum,
+                            "request_id": request_id,
+                        },
+                    }
+
                 if raw_chunk:
                     raw_text_chunks.append(raw_chunk)
                 elif token:
@@ -207,6 +215,9 @@ class RAGService:
                 if token:
                     if first_token_time is None:
                         first_token_time = time.perf_counter()
+                    if not has_emitted_generating_status:
+                        has_emitted_generating_status = True
+                        yield {"event": "status", "data": {"stage": "generating", "request_id": request_id}}
                     yield {"event": "token", "data": {"text": token}}
 
             generation_complete = time.perf_counter()
@@ -218,7 +229,7 @@ class RAGService:
             else:
                 final_intent = model_intent or CanonicalIntent.CUSTOMER_SERVICE_CONTACT
 
-            # 3. Response validation and final escalation check
+            # 4. Response validation and final escalation check
             validation = validate_response(clean_reply)
             if not validation.is_valid:
                 guardrail = evaluate_escalation(query, generation_failed=True)
@@ -232,7 +243,20 @@ class RAGService:
                 request_id, ttft_ms, total_ms, analysis_ms, gen_ms, len(grounding_chunks_accum), final_intent.value, guardrail.should_escalate
             )
 
-            # 4. Final complete event with authoritative semantic intent
+            # 5. Emit progressive updates for intent, grounding, and escalation
+            yield {"event": "metadata", "data": {"request_id": request_id, "intent": final_intent.value, "language": lang}}
+            yield {
+                "event": "grounding",
+                "data": {
+                    "retrieved_context_available": bool(grounding_chunks_accum),
+                    "retrieved_context_count": len(grounding_chunks_accum),
+                    "grounding_metadata": grounding_chunks_accum,
+                    "request_id": request_id,
+                },
+            }
+            yield {"event": "escalation", "data": {"escalate": guardrail.should_escalate, "reason": guardrail.reason, "request_id": request_id}}
+
+            # 6. Final complete event
             complete_metadata = {
                 "request_id": request_id,
                 "intent": final_intent.value,

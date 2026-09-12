@@ -1,78 +1,11 @@
 import {
   ChatResponsePayload,
-  ConversationDetailResponse,
-  ConversationItem,
   ServiceHealth,
   StreamMetadataPayload,
   StreamCompletePayload,
 } from '../types/chat';
 
-const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-export function getClientId(): string {
-  if (typeof window === 'undefined') return 'anonymous-client';
-  let clientId = localStorage.getItem('hiver_client_id');
-  if (!clientId) {
-    clientId = 'client-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now().toString(36);
-    localStorage.setItem('hiver_client_id', clientId);
-  }
-  return clientId;
-}
-
-export async function listConversations(): Promise<ConversationItem[]> {
-  try {
-    const res = await fetch(`${DEFAULT_API_URL}/api/v1/conversations`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'X-Hiver-Client-ID': getClientId(),
-      },
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.conversations || [];
-    }
-  } catch (err) {
-    console.warn('Could not fetch conversations from edge D1:', err);
-  }
-  return [];
-}
-
-export async function getConversation(id: string): Promise<ConversationDetailResponse | null> {
-  try {
-    const res = await fetch(`${DEFAULT_API_URL}/api/v1/conversations/${encodeURIComponent(id)}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'X-Hiver-Client-ID': getClientId(),
-      },
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn(`Could not get conversation ${id}:`, err);
-  }
-  return null;
-}
-
-export async function deleteConversation(id: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${DEFAULT_API_URL}/api/v1/conversations/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'X-Hiver-Client-ID': getClientId(),
-      },
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn(`Could not delete conversation ${id}:`, err);
-    return false;
-  }
-}
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://hiver-assignment-yd38.onrender.com';
 
 export async function checkBackendHealth(): Promise<ServiceHealth> {
   const urlsToTry = [DEFAULT_API_URL];
@@ -111,7 +44,6 @@ export async function sendChatMessage(
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-Hiver-Client-ID': getClientId(),
     },
     body: JSON.stringify({
       text,
@@ -137,7 +69,10 @@ export async function sendChatMessage(
 }
 
 export interface StreamCallbacks {
+  onStatus?: (stage: string) => void;
   onMetadata?: (data: StreamMetadataPayload) => void;
+  onGrounding?: (data: { retrieved_context_available?: boolean; retrieved_context_count?: number; grounding_metadata?: any[] }) => void;
+  onEscalation?: (data: { escalate: boolean; reason?: string | null }) => void;
   onToken?: (text: string) => void;
   onComplete?: (data: StreamCompletePayload) => void;
   onError?: (error: Error) => void;
@@ -145,7 +80,7 @@ export interface StreamCallbacks {
 
 /**
  * Connects to POST /api/v1/chat/stream using Fetch API and ReadableStream.
- * Emits real-time tokens to progressively grow the response text in the UI.
+ * Emits real-time tokens and progressive SSE updates to the UI.
  */
 export async function streamChatMessage(
   text: string,
@@ -169,7 +104,6 @@ export async function streamChatMessage(
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
-          'X-Hiver-Client-ID': getClientId(),
         },
         body: JSON.stringify({
           text,
@@ -262,8 +196,16 @@ export async function streamChatMessage(
 
         try {
           const parsed = JSON.parse(dataStr);
-          if (eventType === 'metadata') {
+          if (eventType === 'status') {
+            if (parsed.stage) {
+              callbacks?.onStatus?.(parsed.stage);
+            }
+          } else if (eventType === 'metadata') {
             callbacks?.onMetadata?.(parsed);
+          } else if (eventType === 'grounding') {
+            callbacks?.onGrounding?.(parsed);
+          } else if (eventType === 'escalation') {
+            callbacks?.onEscalation?.(parsed);
           } else if (eventType === 'token') {
             if (typeof parsed.text === 'string') {
               callbacks?.onToken?.(parsed.text);

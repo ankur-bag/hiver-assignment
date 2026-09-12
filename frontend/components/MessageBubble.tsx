@@ -21,6 +21,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     );
   }
 
+  const stageLabel =
+    message.stage === 'analyzing'
+      ? 'Analyzing request...'
+      : message.stage === 'generating'
+      ? 'Generating response...'
+      : 'Searching support history...';
+
   return (
     <div
       className={`w-full flex my-6 animate-fade-in ${
@@ -51,7 +58,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             {message.isStreaming && !message.text ? (
               <div className="flex items-center gap-2 py-1 text-[13px] text-[#8C8B88]">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Searching support history...</span>
+                <span>{stageLabel}</span>
               </div>
             ) : (
               <div className="whitespace-pre-wrap">

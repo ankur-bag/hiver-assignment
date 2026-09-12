@@ -3,8 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChatMessage,
-  ChatResponsePayload,
-  ConversationItem,
+  ProgressiveAnalysisState,
   ServiceHealth,
   StreamMetadataPayload,
   StreamCompletePayload,
@@ -12,23 +11,46 @@ import {
 import {
   streamChatMessage,
   checkBackendHealth,
-  listConversations,
-  getConversation,
-  deleteConversation,
 } from '../services/api';
 
 export type StreamingStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error' | 'aborted';
+
+export function formatIntentName(rawIntent?: string | null): string {
+  if (!rawIntent) return '—';
+  const clean = rawIntent.trim().toUpperCase();
+  const mapping: Record<string, string> = {
+    PACKAGE_NOT_RECEIVED: 'Package not received',
+    REFUND_PENDING: 'Refund pending',
+    PRODUCT_ISSUE: 'Product issue',
+    ACCOUNT_ACCESS: 'Account access',
+    ACCOUNT_SUPPORT: 'Account support',
+    DELIVERY_DELAY: 'Delivery delay',
+    ORDER_STATUS: 'Order status',
+    CUSTOMER_SERVICE_CONTACT: 'Customer care',
+    ESCALATION: 'Escalation required',
+  };
+  if (mapping[clean]) return mapping[clean];
+  return clean.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const getFormattedTime = () => {
   if (typeof window === 'undefined') return 'Just now';
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-/**
- * Custom React Hook for Chat State Management.
- * Encapsulates real HTTP token streaming, AbortController cancellation,
- * progressive message building, telemetry inspection, and backend health status.
- */
+const INITIAL_ANALYSIS_STATE: ProgressiveAnalysisState = {
+  intent: null,
+  intentStatus: 'idle',
+  retrievedContext: null,
+  retrievedCases: null,
+  retrievedStatus: 'idle',
+  escalate: null,
+  escalationReason: null,
+  escalationStatus: 'idle',
+  language: 'en',
+  requestId: '',
+};
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -44,28 +66,13 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [health, setHealth] = useState<ServiceHealth>({ status: 'healthy' });
-  const [activeAnalysis, setActiveAnalysis] = useState<ChatResponsePayload | null>(null);
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [analysisState, setAnalysisState] = useState<ProgressiveAnalysisState>(INITIAL_ANALYSIS_STATE);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const refreshConversations = useCallback(async () => {
-    try {
-      const list = await listConversations();
-      setConversations(list);
-    } catch (err) {
-      console.warn('Could not refresh conversations:', err);
-    }
-  }, []);
-
-  // Initialize session ID on mount & run health and conversation polling
+  // Initialize in-memory session ID and periodic health check
   useEffect(() => {
-    const storedSession = typeof window !== 'undefined' ? localStorage.getItem('hiver_chat_session') : null;
-    const initialSession = storedSession || Math.random().toString(36).substring(2, 10);
-    setSessionId(initialSession);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('hiver_chat_session', initialSession);
-    }
+    setSessionId(Math.random().toString(36).substring(2, 10));
 
     const pollHealth = () => {
       checkBackendHealth().then((h) => {
@@ -75,14 +82,10 @@ export function useChat() {
       });
     };
 
-    // Immediate check
     pollHealth();
-    refreshConversations();
-
-    // Periodic check every 10 seconds
-    const interval = setInterval(pollHealth, 10000);
+    const interval = setInterval(pollHealth, 15000);
     return () => clearInterval(interval);
-  }, [refreshConversations]);
+  }, []);
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -93,18 +96,32 @@ export function useChat() {
     setIsStreaming(false);
     setStreamingStatus('aborted');
 
-    // Mark any active streaming message as non-streaming
     setMessages((prev) =>
       prev.map((msg) => (msg.isStreaming ? { ...msg, isStreaming: false } : msg))
     );
   }, []);
+
+  const clearChat = useCallback(() => {
+    stopGeneration();
+    setSessionId(Math.random().toString(36).substring(2, 10));
+    setMessages([
+      {
+        id: 'init-msg-1',
+        sender: 'agent',
+        text: 'Hello! I am your Amazon Support Assistant. How can I assist you with your order, delivery, return, or account today?',
+        timestamp: 'Just now',
+      },
+    ]);
+    setAnalysisState(INITIAL_ANALYSIS_STATE);
+    setError(null);
+    setStreamingStatus('idle');
+  }, [stopGeneration]);
 
   const sendMessage = useCallback(
     async (text: string, manualLang?: string) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
 
-      // Abort any existing stream
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -128,6 +145,7 @@ export function useChat() {
         text: '',
         timestamp: currentTime,
         isStreaming: true,
+        stage: 'analyzing',
       };
 
       setMessages((prev) => [...prev, userMessage, placeholderAgentMessage]);
@@ -136,17 +154,18 @@ export function useChat() {
       setStreamingStatus('connecting');
       setError(null);
 
-      // Pre-populate analysis panel with awaiting state.
-      setActiveAnalysis({
-        reply: '',
+      // Immediately set Analysis Panel to active progressive loading states (never "-" or "Unavailable")
+      setAnalysisState({
         intent: 'Analyzing...',
-        retrieved_context: null,
-        retrieved_cases: null,
+        intentStatus: 'analyzing',
+        retrievedContext: 'Searching support history...',
+        retrievedCases: null,
+        retrievedStatus: 'searching',
         escalate: null,
+        escalationReason: null,
+        escalationStatus: 'checking',
         language: manualLang || 'auto',
-        session_id: sessionId,
-        request_id: '',
-        telemetry: {},
+        requestId: '',
       });
 
       let accumulatedText = '';
@@ -156,35 +175,34 @@ export function useChat() {
         setIsStreaming(false);
         setLoading(false);
 
-        let rawError = err?.message || 'Support AI is temporarily busy. Please try again.';
+        let rawError = err?.message || 'Support AI is temporarily unavailable. Please try again.';
         const isQuota =
           err?.code === 'PROVIDER_QUOTA_EXHAUSTED' ||
           err?.code === 'EMBEDDING_DAILY_QUOTA_EXHAUSTED' ||
           rawError.toLowerCase().includes('quota') ||
           rawError.includes('RESOURCE_EXHAUSTED');
 
-        let errorMsg = 'Support AI is temporarily busy. Please try again.';
+        let errorMsg = 'Support AI is temporarily unavailable. Please try again.';
         if (isQuota) {
           errorMsg = 'Support AI daily quota reached. Please try again later.';
         }
 
         setError(errorMsg);
 
-        // On failure: set Intent to Unavailable and all metrics to null (displaying '—')
-        setActiveAnalysis({
-          reply: '',
+        // On failure: set all inspection fields to Unavailable and stop loading dots
+        setAnalysisState({
           intent: 'Unavailable',
-          retrieved_context: null,
-          retrieved_cases: null,
+          intentStatus: 'unavailable',
+          retrievedContext: 'Unavailable',
+          retrievedCases: null,
+          retrievedStatus: 'unavailable',
           escalate: null,
-          escalation_reason: null,
+          escalationReason: null,
+          escalationStatus: 'unavailable',
           language: manualLang || 'auto',
-          session_id: sessionId,
-          request_id: '',
-          telemetry: {},
+          requestId: '',
         });
 
-        // If assistant message was empty, remove it and add system error
         setMessages((prev) => {
           const target = prev.find((m) => m.id === agentMsgId);
           if (target && !target.text.trim()) {
@@ -209,55 +227,52 @@ export function useChat() {
           sessionId,
           manualLang,
           {
-            onMetadata: (metadata: StreamMetadataPayload) => {
+            onStatus: (stage: string) => {
               setStreamingStatus('streaming');
-              setHealth({ status: 'healthy' });
-
-              // Immediately populate AI Analysis panel with classified intent & retrieval count
-              setActiveAnalysis((prev) => ({
-                reply: accumulatedText,
-                intent: metadata.intent,
-                retrieved_context: metadata.retrieved_context,
-                retrieved_cases: metadata.retrieved_cases,
-                escalate: prev?.escalate ?? null,
-                language: metadata.language,
-                session_id: metadata.session_id || sessionId,
-                request_id: metadata.request_id,
-                telemetry: { request_id: metadata.request_id },
-              }));
-
-              if (metadata.session_id && metadata.session_id !== sessionId) {
-                setSessionId(metadata.session_id);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('hiver_chat_session', metadata.session_id);
-                }
-              }
-
-              // Update agent placeholder with initial metadata
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === agentMsgId
-                    ? {
-                        ...msg,
-                        intent: metadata.intent,
-                        retrieved_context: metadata.retrieved_context,
-                        retrieved_cases: metadata.retrieved_cases,
-                        language: metadata.language,
-                        request_id: metadata.request_id,
-                      }
-                    : msg
+                  msg.id === agentMsgId ? { ...msg, stage } : msg
                 )
               );
+            },
+            onMetadata: (metadata: StreamMetadataPayload) => {
+              setStreamingStatus('streaming');
+              if (metadata.intent && metadata.intent !== 'Analyzing...') {
+                setAnalysisState((prev) => ({
+                  ...prev,
+                  intent: formatIntentName(metadata.intent),
+                  intentStatus: 'resolved',
+                  language: metadata.language || prev.language,
+                  requestId: metadata.request_id || prev.requestId,
+                }));
+              }
+            },
+            onGrounding: (groundingData) => {
+              const count = groundingData.retrieved_context_count ?? 0;
+              const text = count === 1 ? '1 source' : count > 1 ? `${count} sources` : 'No relevant history found';
+              setAnalysisState((prev) => ({
+                ...prev,
+                retrievedContext: text,
+                retrievedCases: count,
+                retrievedStatus: 'resolved',
+              }));
+            },
+            onEscalation: (escData) => {
+              setAnalysisState((prev) => ({
+                ...prev,
+                escalate: escData.escalate,
+                escalationReason: escData.reason || null,
+                escalationStatus: 'resolved',
+              }));
             },
             onToken: (tokenText: string) => {
               accumulatedText += tokenText;
               setStreamingStatus('streaming');
 
-              // Efficient token chunk appending
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === agentMsgId
-                    ? { ...msg, text: msg.text + tokenText }
+                    ? { ...msg, text: msg.text + tokenText, stage: undefined }
                     : msg
                 )
               );
@@ -267,13 +282,29 @@ export function useChat() {
               setIsStreaming(false);
               setHealth({ status: 'healthy' });
 
-              // Update final authoritative message details
+              const casesCount = completeData.retrieved_cases ?? (typeof completeData.retrieved_context === 'number' ? completeData.retrieved_context : 0);
+              const contextDisplay = casesCount === 1 ? '1 source' : casesCount > 1 ? `${casesCount} sources` : 'No relevant history found';
+
+              setAnalysisState({
+                intent: formatIntentName(completeData.intent),
+                intentStatus: 'resolved',
+                retrievedContext: contextDisplay,
+                retrievedCases: casesCount,
+                retrievedStatus: 'resolved',
+                escalate: completeData.escalate ?? false,
+                escalationReason: completeData.escalation_reason || null,
+                escalationStatus: 'resolved',
+                language: completeData.language || 'en',
+                requestId: completeData.telemetry?.request_id || '',
+              });
+
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === agentMsgId
                     ? {
                         ...msg,
                         isStreaming: false,
+                        stage: undefined,
                         intent: completeData.intent,
                         retrieved_context: completeData.retrieved_context,
                         retrieved_cases: completeData.retrieved_cases,
@@ -285,23 +316,6 @@ export function useChat() {
                     : msg
                 )
               );
-
-              // Finalize side inspection telemetry
-              setActiveAnalysis({
-                reply: accumulatedText,
-                intent: completeData.intent,
-                retrieved_context: completeData.retrieved_context,
-                retrieved_cases: completeData.retrieved_cases,
-                escalate: completeData.escalate,
-                escalation_reason: completeData.escalation_reason,
-                language: completeData.language,
-                session_id: completeData.session_id || sessionId,
-                request_id: completeData.telemetry?.request_id || '',
-                telemetry: completeData.telemetry,
-              });
-
-              // Refresh conversation list after response is fully generated
-              refreshConversations();
             },
             onError: (err: Error) => {
               handleFailure(err);
@@ -321,121 +335,28 @@ export function useChat() {
         abortControllerRef.current = null;
       }
     },
-    [loading, sessionId, refreshConversations]
+    [loading, sessionId]
   );
 
   const retryLastMessage = useCallback(() => {
-    // Find last user message
     const lastUserMessage = [...messages].reverse().find((m) => m.sender === 'user');
     if (lastUserMessage) {
       sendMessage(lastUserMessage.text);
     }
   }, [messages, sendMessage]);
 
-  const clearChat = useCallback(() => {
-    stopGeneration();
-    const newSession = Math.random().toString(36).substring(2, 10);
-    setSessionId(newSession);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('hiver_chat_session', newSession);
-    }
-    setMessages([
-      {
-        id: 'init-msg-1',
-        sender: 'agent',
-        text: 'Hello! I am your Amazon Support Assistant. How can I assist you with your order, delivery, return, or account today?',
-        timestamp: 'Just now',
-      },
-    ]);
-    setActiveAnalysis(null);
-    setError(null);
-    setStreamingStatus('idle');
-  }, [stopGeneration]);
-
-  const selectConversation = useCallback(async (id: string) => {
-    if (!id || id === sessionId) return;
-    stopGeneration();
-    try {
-      const detail = await getConversation(id);
-      if (detail && detail.conversation) {
-        setSessionId(detail.conversation.id);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('hiver_chat_session', detail.conversation.id);
-        }
-        if (detail.messages && detail.messages.length > 0) {
-          const mapped: ChatMessage[] = detail.messages.map((m: {
-            id: string;
-            role: 'user' | 'assistant';
-            content: string;
-            intent?: string | null;
-            escalated?: number | boolean | null;
-            created_at: string;
-          }) => ({
-            id: m.id,
-            sender: m.role === 'assistant' ? 'agent' : 'user',
-            text: m.content,
-            timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            intent: m.intent || undefined,
-            escalate: m.escalated === 1 || m.escalated === true,
-          }));
-          setMessages(mapped);
-
-          // Find last assistant message to populate analysis panel
-          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant');
-          if (lastAssistant) {
-            setActiveAnalysis({
-              reply: lastAssistant.content,
-              intent: lastAssistant.intent || 'CUSTOMER_SERVICE_CONTACT',
-              retrieved_context: 'available',
-              retrieved_cases: 1,
-              escalate: lastAssistant.escalated === 1 || lastAssistant.escalated === true,
-              escalation_reason: null,
-              language: 'en',
-              session_id: detail.conversation.id,
-              request_id: '',
-              telemetry: {},
-            });
-          } else {
-            setActiveAnalysis(null);
-          }
-        }
-        setError(null);
-      }
-    } catch (err) {
-      console.warn('Could not select conversation:', err);
-    }
-  }, [sessionId, stopGeneration]);
-
-  const deleteConv = useCallback(async (id: string) => {
-    try {
-      const ok = await deleteConversation(id);
-      if (ok) {
-        setConversations((prev) => prev.filter((c) => c.id !== id));
-        if (sessionId === id) {
-          clearChat();
-        }
-      }
-    } catch (err) {
-      console.warn('Could not delete conversation:', err);
-    }
-  }, [sessionId, clearChat]);
-
   return {
     messages,
-    conversations,
     loading,
     isStreaming,
     streamingStatus,
     error,
     sessionId,
     health,
-    activeAnalysis,
+    analysisState,
     sendMessage,
     stopGeneration,
     retryLastMessage,
     clearChat,
-    selectConversation,
-    deleteConv,
-    refreshConversations,
   };
 }

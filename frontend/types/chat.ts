@@ -1,18 +1,36 @@
 export interface TelemetryData {
   request_id?: string;
+  ttft_ms?: number;
   analysis_time_ms?: number;
   generation_time_ms?: number;
   total_time_ms?: number;
   [key: string]: unknown;
 }
 
+export type IntentStatus = 'idle' | 'analyzing' | 'resolved' | 'unavailable';
+export type RetrievalStatus = 'idle' | 'searching' | 'resolved' | 'unavailable';
+export type EscalationStatus = 'idle' | 'checking' | 'resolved' | 'unavailable';
+
 export interface AnalysisFields {
-  intent: string;
-  retrieved_context?: number | 'available' | 'unavailable' | null;
+  intent?: string | null;
+  retrieved_context?: number | string | null;
   retrieved_cases?: number | null;
   escalate?: boolean | null;
   escalation_reason?: string | null;
+  language?: string;
+}
+
+export interface ProgressiveAnalysisState {
+  intent: string | null;
+  intentStatus: IntentStatus;
+  retrievedContext: string | null;
+  retrievedCases: number | null;
+  retrievedStatus: RetrievalStatus;
+  escalate: boolean | null;
+  escalationReason: string | null;
+  escalationStatus: EscalationStatus;
   language: string;
+  requestId: string;
 }
 
 export interface ChatResponsePayload extends AnalysisFields {
@@ -31,9 +49,10 @@ export interface ChatMessage extends Partial<AnalysisFields> {
   telemetry?: TelemetryData;
   error?: boolean;
   isStreaming?: boolean;
+  stage?: 'analyzing' | 'retrieving' | 'generating' | string;
 }
 
-export interface StreamMetadataPayload extends AnalysisFields {
+export interface StreamMetadataPayload extends Partial<AnalysisFields> {
   request_id: string;
   session_id?: string;
 }
@@ -47,23 +66,4 @@ export interface StreamCompletePayload extends AnalysisFields {
 export interface ServiceHealth {
   status: 'healthy' | 'degraded' | 'offline';
   services?: { application: string; file_search_store: string; gemini: string };
-}
-
-export interface ConversationItem {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ConversationDetailResponse {
-  conversation: ConversationItem;
-  messages: Array<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    intent?: string | null;
-    escalated?: number | boolean | null;
-    created_at: string;
-  }>;
 }

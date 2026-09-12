@@ -18,19 +18,16 @@ const SAMPLE_PROMPTS = [
 export const ChatWindow: React.FC = () => {
   const {
     messages,
-    conversations,
     loading,
     isStreaming,
     error,
     sessionId,
     health,
-    activeAnalysis,
+    analysisState,
     sendMessage,
     stopGeneration,
     retryLastMessage,
     clearChat,
-    selectConversation,
-    deleteConv,
   } = useChat();
 
   const [inputQuery, setInputQuery] = useState('');
@@ -67,10 +64,6 @@ export const ChatWindow: React.FC = () => {
         onNewChat={clearChat}
         onOpenSettings={() => setShowSettingsModal(true)}
         health={health}
-        sessionId={sessionId}
-        conversations={conversations}
-        onSelectConversation={selectConversation}
-        onDeleteConversation={deleteConv}
       />
 
       {/* -------------------------------------------------
@@ -187,11 +180,7 @@ export const ChatWindow: React.FC = () => {
           isAnalysisOpen ? 'translate-x-0' : 'translate-x-full lg:hidden'
         }`}
       >
-        <AnalysisPanel
-          analysis={activeAnalysis}
-          health={health}
-          sessionId={sessionId}
-        />
+        <AnalysisPanel analysis={analysisState} />
       </div>
 
       {/* Settings Modal Dialog */}
@@ -213,8 +202,8 @@ export const ChatWindow: React.FC = () => {
             <div className="space-y-2.5 text-[12px] text-[#8C8B88]">
               <div className="flex justify-between py-1 border-b border-white/[0.04]">
                 <span>Backend service</span>
-                <span className="text-[#EDEDEC]">
-                  {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}
+                <span className="text-[#EDEDEC] truncate max-w-[200px]">
+                  {process.env.NEXT_PUBLIC_API_URL || 'https://hiver-assignment-yd38.onrender.com'}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-white/[0.04]">
