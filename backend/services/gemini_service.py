@@ -10,6 +10,8 @@ from enum import Enum
 from threading import Lock
 from typing import Any, Iterator, Optional
 
+import httpcore
+import httpx
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -83,8 +85,10 @@ def _is_permanent_quota(exc: Exception) -> bool:
 
 
 def _is_transient(exc: Exception) -> bool:
+    if isinstance(exc, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.TimeoutException, httpcore.ReadTimeout, httpcore.ConnectTimeout, TimeoutError)):
+        return True
     value = str(exc).lower()
-    return any(token in value for token in ("timeout", "timed out", "connection", "500", "502", "503", "504", "unavailable"))
+    return any(token in value for token in ("readtimeout", "timeout", "timed out", "connection", "500", "502", "503", "504", "unavailable"))
 
 
 class GeminiFileSearchService:
@@ -93,12 +97,14 @@ class GeminiFileSearchService:
         api_key: Optional[str] = None,
         store_name: Optional[str] = None,
         model_name: Optional[str] = None,
+        fallback_model_name: Optional[str] = None,
         timeout_seconds: Optional[float] = None
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.store_name = store_name or os.getenv("GEMINI_FILE_SEARCH_STORE")
-        self.model_name = model_name or os.getenv("GEMINI_GENERATION_MODEL", "gemini-3.5-flash-lite")
-        self.timeout_seconds = float(timeout_seconds or os.getenv("GEMINI_CHAT_TIMEOUT_SECONDS", "15.0"))
+        self.model_name = model_name or os.getenv("GEMINI_GENERATION_MODEL", "gemini-3.6-flash")
+        self.fallback_model_name = fallback_model_name or os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+        self.timeout_seconds = float(timeout_seconds or os.getenv("GEMINI_CHAT_TIMEOUT_SECONDS", "22.0"))
         self._client = None
 
     @property
@@ -170,7 +176,9 @@ class GeminiFileSearchService:
     ) -> Iterator[tuple[Optional[str], list[dict[str, Any]], Optional[str]]]:
         """
         High-performance single-pass streaming with Gemini File Search.
-        Emits tokens immediately as they arrive while buffering trailing [INTENT: ...] tag.
+        Supports automatic fallback from primary model (e.g. gemini-3.6-flash) to
+        fallback model (e.g. gemini-3.5-flash-lite) on ReadTimeout/503 ONLY BEFORE the
+        first customer-visible token has been emitted.
         Yields: (user_visible_token, grounding_metadata_chunks, raw_chunk_text)
         """
         from google.genai import types
@@ -197,55 +205,117 @@ At the very end of your response, output exactly one intent tag on a new line:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
 
-        def _get_stream():
+        def _get_stream(model: str):
             return self._get_client().models.generate_content_stream(
-                model=self.model_name,
+                model=model,
                 contents=f"Customer request: {query}\nSupport reply:",
                 config=config,
             )
 
-        stream = self._call_with_retry(_get_stream)
+        active_model = self.model_name
+        stream = None
+        has_emitted_any_token = False
+
+        # 1. Attempt primary model stream initiation
+        try:
+            stream = _get_stream(active_model)
+        except Exception as exc:
+            if _is_permanent_quota(exc):
+                raise ProviderQuotaError("AI service quota is exhausted; please try again later") from exc
+            if not _is_transient(exc) or not self.fallback_model_name or self.fallback_model_name == active_model:
+                raise ProviderError(f"AI service stream request failed: {exc}") from exc
+
+            # Fallback before first token on stream initialization failure
+            logger.warning(
+                "Primary model %s failed on stream initialization (%s); invoking fallback model %s",
+                active_model, exc, self.fallback_model_name
+            )
+            active_model = self.fallback_model_name
+            try:
+                stream = _get_stream(active_model)
+            except Exception as fb_exc:
+                if _is_permanent_quota(fb_exc):
+                    raise ProviderQuotaError("AI service quota is exhausted; please try again later") from fb_exc
+                if _is_transient(fb_exc):
+                    raise ProviderTransientError("AI service is temporarily unavailable") from fb_exc
+                raise ProviderError(f"Fallback model request failed: {fb_exc}") from fb_exc
+
+        # 2. Iterate through stream chunks
         bracket_buffer = ""
-        for chunk in stream:
-            raw_text = chunk.text or ""
-            metadata = []
-            candidates = getattr(chunk, "candidates", None) or []
-            if candidates:
-                grounding = getattr(candidates[0], "grounding_metadata", None)
-                if grounding:
-                    for g_chunk in (getattr(grounding, "grounding_chunks", None) or []):
-                        retrieved = getattr(g_chunk, "retrieved_context", None)
-                        if retrieved:
-                            item = {
-                                "title": getattr(retrieved, "title", None),
-                                "uri": getattr(retrieved, "uri", None),
-                                "file_search_store": getattr(retrieved, "file_search_store", None),
-                            }
-                            metadata.append({k: v for k, v in item.items() if v})
+        while True:
+            try:
+                for chunk in stream:
+                    raw_text = chunk.text or ""
+                    metadata = []
+                    candidates = getattr(chunk, "candidates", None) or []
+                    if candidates:
+                        grounding = getattr(candidates[0], "grounding_metadata", None)
+                        if grounding:
+                            for g_chunk in (getattr(grounding, "grounding_chunks", None) or []):
+                                retrieved = getattr(g_chunk, "retrieved_context", None)
+                                if retrieved:
+                                    item = {
+                                        "title": getattr(retrieved, "title", None),
+                                        "uri": getattr(retrieved, "uri", None),
+                                        "file_search_store": getattr(retrieved, "file_search_store", None),
+                                    }
+                                    metadata.append({k: v for k, v in item.items() if v})
 
-            # Stream filtering: hide [INTENT: ...] from live token output
-            if not raw_text:
-                yield None, metadata, None
-                continue
+                    # Stream filtering: hide [INTENT: ...] from live token output
+                    if not raw_text:
+                        yield None, metadata, None
+                        continue
 
-            combined = bracket_buffer + raw_text
-            bracket_buffer = ""
+                    combined = bracket_buffer + raw_text
+                    bracket_buffer = ""
 
-            if "[" in combined:
-                before_b, after_b = combined.split("[", 1)
-                bracket_candidate = "[" + after_b
-                if "]" in bracket_candidate:
-                    # Full bracket parsed
-                    cleaned_bracket = re.sub(r"\[INTENT:\s*[A-Z_]+\]", "", bracket_candidate)
-                    token_to_emit = (before_b + cleaned_bracket) or None
-                    yield token_to_emit, metadata, raw_text
-                else:
-                    # Bracket not closed yet, buffer it
-                    bracket_buffer = bracket_candidate
-                    token_to_emit = before_b or None
-                    yield token_to_emit, metadata, raw_text
-            else:
-                yield combined, metadata, raw_text
+                    if "[" in combined:
+                        before_b, after_b = combined.split("[", 1)
+                        bracket_candidate = "[" + after_b
+                        if "]" in bracket_candidate:
+                            # Full bracket parsed
+                            cleaned_bracket = re.sub(r"\[INTENT:\s*[A-Z_]+\]", "", bracket_candidate)
+                            token_to_emit = (before_b + cleaned_bracket) or None
+                            if token_to_emit:
+                                has_emitted_any_token = True
+                            yield token_to_emit, metadata, raw_text
+                        else:
+                            # Bracket not closed yet, buffer it
+                            bracket_buffer = bracket_candidate
+                            token_to_emit = before_b or None
+                            if token_to_emit:
+                                has_emitted_any_token = True
+                            yield token_to_emit, metadata, raw_text
+                    else:
+                        has_emitted_any_token = True
+                        yield combined, metadata, raw_text
+                break
+            except Exception as stream_exc:
+                if _is_permanent_quota(stream_exc):
+                    raise ProviderQuotaError("AI service quota is exhausted; please try again later") from stream_exc
+
+                # Fallback is allowed ONLY BEFORE first customer-visible token has been emitted
+                if not has_emitted_any_token and _is_transient(stream_exc) and self.fallback_model_name and active_model != self.fallback_model_name:
+                    logger.warning(
+                        "Primary model %s failed before first token chunk (%s); switching to fallback model %s",
+                        active_model, stream_exc, self.fallback_model_name
+                    )
+                    active_model = self.fallback_model_name
+                    bracket_buffer = ""
+                    try:
+                        stream = _get_stream(active_model)
+                        continue
+                    except Exception as fb_exc:
+                        if _is_permanent_quota(fb_exc):
+                            raise ProviderQuotaError("AI service quota is exhausted; please try again later") from fb_exc
+                        if _is_transient(fb_exc):
+                            raise ProviderTransientError("AI service is temporarily unavailable") from fb_exc
+                        raise ProviderError(f"Fallback model stream request failed: {fb_exc}") from fb_exc
+
+                # If tokens were ALREADY emitted or no fallback available: DO NOT fallback midstream
+                if _is_transient(stream_exc):
+                    raise ProviderTransientError("AI response generation was interrupted") from stream_exc
+                raise ProviderError(f"AI response generation failed: {stream_exc}") from stream_exc
 
         if bracket_buffer:
             cleaned_remaining = re.sub(r"\[INTENT:\s*[A-Z_]+\]?", "", bracket_buffer)
