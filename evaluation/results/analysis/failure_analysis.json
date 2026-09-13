@@ -1,0 +1,217 @@
+{
+  "summary": {
+    "total_examples": 158,
+    "intent_accuracy": 0.6709,
+    "macro_f1": 0.6251,
+    "weighted_f1": 0.6571,
+    "escalation_metrics": {
+      "accuracy": 0.7215,
+      "true_positives": 4,
+      "false_negatives": 42,
+      "false_positives": 2,
+      "true_negatives": 110,
+      "precision": 0.6667,
+      "recall": 0.087,
+      "f1": 0.1538
+    }
+  },
+  "per_class_intent_metrics": {
+    "ACCOUNT_ACCESS": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1_score": 0.75,
+      "support": 3
+    },
+    "ACCOUNT_SUPPORT": {
+      "precision": 0.6364,
+      "recall": 0.4375,
+      "f1_score": 0.5185,
+      "support": 16
+    },
+    "CUSTOMER_SERVICE_CONTACT": {
+      "precision": 0.7333,
+      "recall": 0.8919,
+      "f1_score": 0.8049,
+      "support": 37
+    },
+    "DELIVERY_DELAY": {
+      "precision": 0.75,
+      "recall": 0.7895,
+      "f1_score": 0.7692,
+      "support": 38
+    },
+    "ORDER_STATUS": {
+      "precision": 0.6,
+      "recall": 0.25,
+      "f1_score": 0.3529,
+      "support": 24
+    },
+    "PACKAGE_NOT_RECEIVED": {
+      "precision": 0.5625,
+      "recall": 0.8182,
+      "f1_score": 0.6667,
+      "support": 11
+    },
+    "PRODUCT_ISSUE": {
+      "precision": 0.8667,
+      "recall": 0.5652,
+      "f1_score": 0.6842,
+      "support": 23
+    },
+    "REFUND_PENDING": {
+      "precision": 0.3125,
+      "recall": 0.8333,
+      "f1_score": 0.4545,
+      "support": 6
+    }
+  },
+  "top_confusion_pairs": [
+    {
+      "expected_intent": "ORDER_STATUS",
+      "predicted_intent": "DELIVERY_DELAY",
+      "count": 6
+    },
+    {
+      "expected_intent": "ORDER_STATUS",
+      "predicted_intent": "REFUND_PENDING",
+      "count": 5
+    },
+    {
+      "expected_intent": "DELIVERY_DELAY",
+      "predicted_intent": "PACKAGE_NOT_RECEIVED",
+      "count": 5
+    },
+    {
+      "expected_intent": "PRODUCT_ISSUE",
+      "predicted_intent": "CUSTOMER_SERVICE_CONTACT",
+      "count": 4
+    },
+    {
+      "expected_intent": "ORDER_STATUS",
+      "predicted_intent": "CUSTOMER_SERVICE_CONTACT",
+      "count": 4
+    },
+    {
+      "expected_intent": "CUSTOMER_SERVICE_CONTACT",
+      "predicted_intent": "DELIVERY_DELAY",
+      "count": 3
+    },
+    {
+      "expected_intent": "PRODUCT_ISSUE",
+      "predicted_intent": "REFUND_PENDING",
+      "count": 3
+    },
+    {
+      "expected_intent": "PRODUCT_ISSUE",
+      "predicted_intent": "ACCOUNT_SUPPORT",
+      "count": 2
+    },
+    {
+      "expected_intent": "ACCOUNT_SUPPORT",
+      "predicted_intent": "CUSTOMER_SERVICE_CONTACT",
+      "count": 2
+    },
+    {
+      "expected_intent": "ACCOUNT_SUPPORT",
+      "predicted_intent": "ORDER_STATUS",
+      "count": 2
+    },
+    {
+      "expected_intent": "ACCOUNT_SUPPORT",
+      "predicted_intent": "ACCOUNT_ACCESS",
+      "count": 1
+    },
+    {
+      "expected_intent": "PRODUCT_ISSUE",
+      "predicted_intent": "ACCOUNT_ACCESS",
+      "count": 1
+    },
+    {
+      "expected_intent": "DELIVERY_DELAY",
+      "predicted_intent": "CUSTOMER_SERVICE_CONTACT",
+      "count": 1
+    },
+    {
+      "expected_intent": "PACKAGE_NOT_RECEIVED",
+      "predicted_intent": "ACCOUNT_SUPPORT",
+      "count": 1
+    },
+    {
+      "expected_intent": "ORDER_STATUS",
+      "predicted_intent": "ACCOUNT_SUPPORT",
+      "count": 1
+    }
+  ],
+  "top_5_failure_modes": [
+    {
+      "rank": 1,
+      "name": "Severe Escalation False Negatives (Frustration, Prior Failed Contacts, Carrier Impasse)",
+      "affected_examples_count": 42,
+      "sample_example_ids": [
+        "G005",
+        "G008",
+        "G015",
+        "G017"
+      ],
+      "description": "Customer experiences severe friction (e.g. 2-3 previous failed contacts, carrier lost package, no resolution), yet the model predicts escalate=False and provides standard self-service steps.",
+      "root_cause_hypothesis": "The prompt's escalation guidelines prioritize safety and self-service default without a dedicated sentiment/re-contact detection classifier or calibrated threshold.",
+      "mitigation": "Add explicit few-shot rules for prior-contact signals ('2nd/3rd time contacting', 'nobody knows', 'unresolved') and implement a dedicated multi-stage escalation classifier with higher sensitivity."
+    },
+    {
+      "rank": 2,
+      "name": "ORDER_STATUS Underprediction & Confusion with DELIVERY_DELAY / REFUND_PENDING",
+      "affected_examples_count": 18,
+      "sample_example_ids": [
+        "G002",
+        "G003",
+        "G071",
+        "G073"
+      ],
+      "description": "Customers inquiring about overall order state or shipments before dispatch are misclassified into downstream execution states like DELIVERY_DELAY or REFUND_PENDING.",
+      "root_cause_hypothesis": "Keywords like 'dispatch', 'prepared for shipment', or 'cancel' trigger specific operational branch prompts rather than general status lookups.",
+      "mitigation": "Clarify taxonomy definition: pre-shipment timeline inquiries belong to ORDER_STATUS, whereas confirmed past-due shipments belong to DELIVERY_DELAY."
+    },
+    {
+      "rank": 3,
+      "name": "DELIVERY_DELAY vs PACKAGE_NOT_RECEIVED Ambiguity",
+      "affected_examples_count": 6,
+      "sample_example_ids": [
+        "G032",
+        "G124",
+        "G125",
+        "G126"
+      ],
+      "description": "In-transit carrier delays (courier not answering, redelivery attempt) get classified as lost packages (PACKAGE_NOT_RECEIVED).",
+      "root_cause_hypothesis": "Semantic overlap between 'item has not arrived yet' (delay) and 'package is permanently lost/missing' (not received).",
+      "mitigation": "Refine prompt boundary: use PACKAGE_NOT_RECEIVED only when carrier marks delivered or explicitly lost; use DELIVERY_DELAY when tracking indicates active transit/redelivery."
+    },
+    {
+      "rank": 4,
+      "name": "PRODUCT_ISSUE Confusion with CUSTOMER_SERVICE_CONTACT / ACCOUNT_SUPPORT",
+      "affected_examples_count": 10,
+      "sample_example_ids": [
+        "G001",
+        "G033",
+        "G035",
+        "G092"
+      ],
+      "description": "Customers describing software/hardware defects (app crashing, review submission failure, server errors) are classified as general contact or account issues.",
+      "root_cause_hypothesis": "When customers ask 'can someone help with this error in the app', the contact intent overrides the technical defect intent.",
+      "mitigation": "Prioritize domain-specific technical defects over generic contact intent when an explicit app/device malfunction is described."
+    },
+    {
+      "rank": 5,
+      "name": "REFUND_PENDING Overprediction on Return / Order Status Queries (Low Precision = 31.25%)",
+      "affected_examples_count": 11,
+      "sample_example_ids": [
+        "G002",
+        "G003",
+        "G075",
+        "G105"
+      ],
+      "description": "Any customer message mentioning return, cancellation, or money is prematurely classified as REFUND_PENDING even before a return or refund has been initiated.",
+      "root_cause_hypothesis": "High semantic salience of refund keywords in the embedding/prompt matching logic.",
+      "mitigation": "Restrict REFUND_PENDING to cases where a refund has already been authorized or return received, routing pre-return questions to PRODUCT_ISSUE or ORDER_STATUS."
+    }
+  ]
+}
