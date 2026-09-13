@@ -3,6 +3,9 @@
 An enterprise-grade, grounded customer support assistant designed for automated inquiry resolution, issue intent classification, and policy-disciplined escalation routing on e-commerce support queries. Built on the **AmazonHelp** support distribution from the Customer Support on Twitter (TWCS) corpus, the system pairs **Gemini 3.6 Flash** with **Gemini File Search** for managed retrieval-augmented generation (RAG), strict structured JSON extraction, and real-time Server-Sent Events (SSE) streaming.
 
 ---
+# Project Report 
+
+https://drive.google.com/file/d/1A6A9w2Q-NER38RJOaFSaJzmSFFAEKIvw/view?usp=sharing
 
 # Project Journey
 
