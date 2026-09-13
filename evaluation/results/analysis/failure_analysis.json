@@ -213,5 +213,26 @@
       "root_cause_hypothesis": "High semantic salience of refund keywords in the embedding/prompt matching logic.",
       "mitigation": "Restrict REFUND_PENDING to cases where a refund has already been authorized or return received, routing pre-return questions to PRODUCT_ISSUE or ORDER_STATUS."
     }
-  ]
+  ],
+  "escalation_failure_breakdown": {
+    "total_missed": 42,
+    "total_expected_positive": 46,
+    "missed_rate": 0.913,
+    "categories": {
+      "repeated_prior_contacts_unresolved": 19,
+      "carrier_deadlock_lost_in_transit": 11,
+      "severe_frustration_human_agent_demand": 6,
+      "complex_account_financial_stalemate": 4,
+      "persistent_technical_auth_failure": 2
+    },
+    "conclusion": "The system missed 42 of 46 escalation-positive examples (91.3%). Repeated unresolved prior support contact was the largest missed subgroup (19/42), but the failures also included carrier deadlocks, severe frustration, financial/account stalemates, and persistent technical issues."
+  },
+  "evaluation_set_metadata": {
+    "dataset_name": "158-example audited evaluation set",
+    "golden_set_hash": "55051F29B32EFE018CA33B63C865D92040266AB6DD0106F64CFA982ECF97A5DC",
+    "sample_size": 158
+  },
+  "limitation_notes": {
+    "inter_model_agreement": "Because the secondary quality audit was performed by an independent LLM rather than a human evaluator, inter-model agreement should not be interpreted as human validation."
+  }
 }
