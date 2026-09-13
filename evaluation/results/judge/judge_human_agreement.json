@@ -1,0 +1,6 @@
+{
+  "status": "pending_human_review",
+  "sample_size": 40,
+  "sample_file": "evaluation/results/judge/human_review_sample.csv",
+  "message": "Human ratings have not been completed yet. Run scripts/evaluation/compute_judge_agreement.py after completing review."
+}
