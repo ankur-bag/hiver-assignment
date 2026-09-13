@@ -314,8 +314,5 @@
       }
     }
   },
-  "error_counts": {},
-  "run_id": "run-20260913-092747-088996",
-  "golden_set_hash": "55051f29b32e",
-  "base_url": "http://127.0.0.1:8000"
+  "error_counts": {}
 }

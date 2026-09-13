@@ -451,13 +451,20 @@ def main():
     parser = argparse.ArgumentParser(description="Compute metrics from golden evaluation results CSV")
     parser.add_argument(
         "--input",
-        default="evaluation/results/golden_eval_results.csv",
+        "--results",
+        dest="input",
+        default="evaluation/results/final/golden_eval_results.csv",
         help="Path to results CSV"
     )
     parser.add_argument(
         "--output",
-        default="evaluation/results/golden_eval_summary.json",
+        default="evaluation/results/final/golden_eval_summary.json",
         help="Path to save summary JSON"
+    )
+    parser.add_argument(
+        "--golden",
+        default="evaluation/golden_set_final.csv",
+        help="Path to golden set CSV (optional reference)"
     )
     args = parser.parse_args()
 
