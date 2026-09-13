@@ -1,0 +1,84 @@
+{
+  "golden_set": {
+    "examples": 158,
+    "sha256": "55051F29B32EFE018CA33B63C865D92040266AB6DD0106F64CFA982ECF97A5DC",
+    "intents_count": 8,
+    "canonical_intents": [
+      "ACCOUNT_ACCESS",
+      "ACCOUNT_SUPPORT",
+      "CUSTOMER_SERVICE_CONTACT",
+      "DELIVERY_DELAY",
+      "ORDER_STATUS",
+      "PACKAGE_NOT_RECEIVED",
+      "PRODUCT_ISSUE",
+      "REFUND_PENDING"
+    ]
+  },
+  "majority_baseline": {
+    "majority_class": "ACCOUNT_ACCESS",
+    "intent_accuracy": 0.019,
+    "macro_f1": 0.0047,
+    "weighted_f1": 0.0007,
+    "per_intent_f1": {
+      "ACCOUNT_ACCESS": 0.0373,
+      "ACCOUNT_SUPPORT": 0.0,
+      "CUSTOMER_SERVICE_CONTACT": 0.0,
+      "DELIVERY_DELAY": 0.0,
+      "ORDER_STATUS": 0.0,
+      "PACKAGE_NOT_RECEIVED": 0.0,
+      "PRODUCT_ISSUE": 0.0,
+      "REFUND_PENDING": 0.0
+    }
+  },
+  "tfidf_logreg": {
+    "classifier": "LogisticRegression(class_weight='balanced', max_iter=2000)",
+    "intent_accuracy": 0.3987,
+    "macro_f1": 0.3584,
+    "weighted_f1": 0.4169,
+    "per_intent_f1": {
+      "ACCOUNT_ACCESS": 0.2222,
+      "ACCOUNT_SUPPORT": 0.0645,
+      "CUSTOMER_SERVICE_CONTACT": 0.6667,
+      "DELIVERY_DELAY": 0.3793,
+      "ORDER_STATUS": 0.3902,
+      "PACKAGE_NOT_RECEIVED": 0.3158,
+      "PRODUCT_ISSUE": 0.4286,
+      "REFUND_PENDING": 0.4
+    }
+  },
+  "gemini_rag_system": {
+    "intent_accuracy": 0.6709,
+    "macro_f1": 0.6251,
+    "weighted_f1": 0.6571,
+    "per_intent_f1": {
+      "ACCOUNT_ACCESS": 0.75,
+      "ACCOUNT_SUPPORT": 0.5185,
+      "CUSTOMER_SERVICE_CONTACT": 0.8049,
+      "DELIVERY_DELAY": 0.7692,
+      "ORDER_STATUS": 0.3529,
+      "PACKAGE_NOT_RECEIVED": 0.6667,
+      "PRODUCT_ISSUE": 0.6842,
+      "REFUND_PENDING": 0.4545
+    }
+  },
+  "trivial_escalation": {
+    "accuracy": 0.7089,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "tn": 112,
+    "fp": 0,
+    "fn": 46
+  },
+  "gemini_escalation": {
+    "accuracy": 0.7215,
+    "precision": 0.6667,
+    "recall": 0.087,
+    "f1": 0.1538,
+    "tp": 4,
+    "tn": 110,
+    "fp": 2,
+    "fn": 42
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "n_total": 158,
+  "n_success": 158,
+  "classifier": "LogisticRegression(class_weight='balanced', max_iter=2000, random_state=42)",
+  "vectorizer": "TfidfVectorizer(ngram_range=(1,2), min_df=2, max_features=50000, sublinear_tf=True)",
+  "training_sample_count": 44665,
+  "intent": {
+    "accuracy": 0.3987,
+    "macro_precision": 0.3734,
+    "macro_recall": 0.4612,
+    "macro_f1": 0.3584,
+    "weighted_f1": 0.4169,
+    "per_intent": {
+      "ACCOUNT_ACCESS": {
+        "support": 3,
+        "precision": 0.1333,
+        "recall": 0.6667,
+        "f1": 0.2222
+      },
+      "ACCOUNT_SUPPORT": {
+        "support": 16,
+        "precision": 0.0667,
+        "recall": 0.0625,
+        "f1": 0.0645
+      },
+      "CUSTOMER_SERVICE_CONTACT": {
+        "support": 37,
+        "precision": 0.8077,
+        "recall": 0.5676,
+        "f1": 0.6667
+      },
+      "DELIVERY_DELAY": {
+        "support": 38,
+        "precision": 0.55,
+        "recall": 0.2895,
+        "f1": 0.3793
+      },
+      "ORDER_STATUS": {
+        "support": 24,
+        "precision": 0.4706,
+        "recall": 0.3333,
+        "f1": 0.3902
+      },
+      "PACKAGE_NOT_RECEIVED": {
+        "support": 11,
+        "precision": 0.2222,
+        "recall": 0.5455,
+        "f1": 0.3158
+      },
+      "PRODUCT_ISSUE": {
+        "support": 23,
+        "precision": 0.4737,
+        "recall": 0.3913,
+        "f1": 0.4286
+      },
+      "REFUND_PENDING": {
+        "support": 6,
+        "precision": 0.2632,
+        "recall": 0.8333,
+        "f1": 0.4
+      }
+    },
+    "confusion_matrix": {
+      "ACCOUNT_ACCESS": {
+        "ACCOUNT_ACCESS": 2,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 1,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 0
+      },
+      "ACCOUNT_SUPPORT": {
+        "ACCOUNT_ACCESS": 1,
+        "ACCOUNT_SUPPORT": 1,
+        "CUSTOMER_SERVICE_CONTACT": 3,
+        "DELIVERY_DELAY": 1,
+        "ORDER_STATUS": 3,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 2,
+        "REFUND_PENDING": 5
+      },
+      "CUSTOMER_SERVICE_CONTACT": {
+        "ACCOUNT_ACCESS": 2,
+        "ACCOUNT_SUPPORT": 7,
+        "CUSTOMER_SERVICE_CONTACT": 21,
+        "DELIVERY_DELAY": 2,
+        "ORDER_STATUS": 2,
+        "PACKAGE_NOT_RECEIVED": 1,
+        "PRODUCT_ISSUE": 1,
+        "REFUND_PENDING": 1
+      },
+      "DELIVERY_DELAY": {
+        "ACCOUNT_ACCESS": 2,
+        "ACCOUNT_SUPPORT": 2,
+        "CUSTOMER_SERVICE_CONTACT": 1,
+        "DELIVERY_DELAY": 11,
+        "ORDER_STATUS": 3,
+        "PACKAGE_NOT_RECEIVED": 14,
+        "PRODUCT_ISSUE": 4,
+        "REFUND_PENDING": 1
+      },
+      "ORDER_STATUS": {
+        "ACCOUNT_ACCESS": 1,
+        "ACCOUNT_SUPPORT": 2,
+        "CUSTOMER_SERVICE_CONTACT": 1,
+        "DELIVERY_DELAY": 5,
+        "ORDER_STATUS": 8,
+        "PACKAGE_NOT_RECEIVED": 4,
+        "PRODUCT_ISSUE": 2,
+        "REFUND_PENDING": 1
+      },
+      "PACKAGE_NOT_RECEIVED": {
+        "ACCOUNT_ACCESS": 1,
+        "ACCOUNT_SUPPORT": 1,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 6,
+        "PRODUCT_ISSUE": 1,
+        "REFUND_PENDING": 2
+      },
+      "PRODUCT_ISSUE": {
+        "ACCOUNT_ACCESS": 6,
+        "ACCOUNT_SUPPORT": 2,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 2,
+        "PRODUCT_ISSUE": 9,
+        "REFUND_PENDING": 4
+      },
+      "REFUND_PENDING": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 1,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 5
+      }
+    }
+  }
+}
