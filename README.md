@@ -7,6 +7,8 @@ An enterprise-grade, grounded customer support assistant designed for automated 
 
 https://drive.google.com/file/d/1A6A9w2Q-NER38RJOaFSaJzmSFFAEKIvw/view?usp=sharing
 
+---
+
 # Project Journey
 
 This project changed a lot while we were building it. At first, we used local models, embeddings, classifiers, and external vector tools. Later, we simplified the system and moved to a cleaner Gemini-based setup with Gemini File Search for retrieval and Gemini 3.6 Flash for generating replies.
