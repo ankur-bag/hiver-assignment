@@ -234,3 +234,41 @@ def test_primary_first_token_timeout_triggers_fallback_with_no_interleaved_error
     assert "token" in event_names
     assert events[-1]["event"] == "complete"
     assert events[-1]["data"]["intent"] == "REFUND_PENDING"
+
+
+def test_single_model_uses_full_timeout_budget_without_premature_cutoff():
+    """When fallback model matches primary or is not distinct, the model gets full timeout_seconds budget."""
+    import time
+    service = GeminiFileSearchService(
+        api_key="test_key",
+        store_name="fileSearchStores/test",
+        model_name="gemini-3.5-flash-lite",
+        fallback_model_name="gemini-3.5-flash-lite",
+        primary_first_token_timeout=0.1,  # 100ms watchdog for multi-model handoff
+        timeout_seconds=2.0  # 2000ms full budget
+    )
+
+    class Chunk:
+        def __init__(self, text):
+            self.text = text
+            self.candidates = []
+
+    def slightly_slow_single_model():
+        # Takes 200ms (> 100ms primary watchdog, but well under 2000ms full budget)
+        time.sleep(0.2)
+        yield Chunk("Valid single model reply. ")
+        yield Chunk("\n\n[INTENT: ORDER_STATUS]")
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content_stream = lambda model, contents, config: slightly_slow_single_model()
+    service._get_client = MagicMock(return_value=mock_client)
+
+    rag = RAGService(service)
+    events = list(rag.chat_stream("Where is my package?", "en"))
+
+    event_names = [e["event"] for e in events]
+    assert "error" not in event_names
+    assert "token" in event_names
+    assert events[-1]["event"] == "complete"
+    assert events[-1]["data"]["intent"] == "ORDER_STATUS"
+

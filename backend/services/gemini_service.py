@@ -24,7 +24,6 @@ class CanonicalIntent(str, Enum):
     ACCOUNT_SUPPORT = "ACCOUNT_SUPPORT"
     CUSTOMER_SERVICE_CONTACT = "CUSTOMER_SERVICE_CONTACT"
     DELIVERY_DELAY = "DELIVERY_DELAY"
-    ESCALATION = "ESCALATION"
     ORDER_STATUS = "ORDER_STATUS"
     PACKAGE_NOT_RECEIVED = "PACKAGE_NOT_RECEIVED"
     PRODUCT_ISSUE = "PRODUCT_ISSUE"
@@ -34,13 +33,12 @@ class CanonicalIntent(str, Enum):
 INTENT_PROMPT_DOCS = """Choose <INTENT_NAME> ONLY from this canonical list based on semantic meaning:
 - ACCOUNT_ACCESS: Login, password, OTP, account lock, access problem.
 - ACCOUNT_SUPPORT: Profile, settings, email, phone, membership, prime, payment method, account maintenance.
-- CUSTOMER_SERVICE_CONTACT: Customer explicitly wants customer care, representative, agent, phone/chat, or human support.
+- CUSTOMER_SERVICE_CONTACT: Customer explicitly wants customer care, representative, agent, phone/chat, supervisor/manager, or human support.
 - DELIVERY_DELAY: Shipment exists but delivery is delayed/late.
 - PACKAGE_NOT_RECEIVED: Package/order expected but not received, missing, delivered-but-missing, or equivalent multilingual phrasing (e.g., 'mera order deliver nahi hua', 'parcel nahi aaya').
 - ORDER_STATUS: General tracking or order status question without clear missing/delay issue.
 - PRODUCT_ISSUE: Wrong item/order/product received, damaged, defective, broken, incomplete, incorrect variant, quality problem, product not working (e.g., 'i got wrong order', 'galat item mila').
-- REFUND_PENDING: Refund requested/expected but not received, return reimbursement/status.
-- ESCALATION: Safety, legal, fraud, or severe issues requiring escalation."""
+- REFUND_PENDING: Refund requested/expected but not received, return reimbursement/status."""
 
 
 def extract_intent_and_clean_text(raw_text: str) -> tuple[Optional[CanonicalIntent], str]:
@@ -168,6 +166,14 @@ class GeminiFileSearchService:
     def configured(self) -> bool:
         return bool(self.api_key and self.store_name and self.model_name)
 
+    @property
+    def has_distinct_fallback(self) -> bool:
+        return bool(
+            self.fallback_model_name
+            and self.fallback_model_name.strip()
+            and self.fallback_model_name.strip() != self.model_name.strip()
+        )
+
     def _get_client(self):
         if self._client is None:
             if not self.api_key:
@@ -275,11 +281,15 @@ At the very end of your response, output exactly one intent tag on a new line:
         has_emitted_any_token = False
 
         def _build_stream(model: str):
-            first_timeout = (
-                self.primary_first_token_timeout
-                if model == self.model_name
-                else self.fallback_timeout
-            )
+            if self.has_distinct_fallback:
+                first_timeout = (
+                    self.primary_first_token_timeout
+                    if model == self.model_name
+                    else self.fallback_timeout
+                )
+            else:
+                first_timeout = self.timeout_seconds
+
             return _stream_with_timeout(
                 _get_stream(model),
                 first_token_timeout=first_timeout,
@@ -343,7 +353,7 @@ At the very end of your response, output exactly one intent tag on a new line:
                     raise ProviderQuotaError("AI service quota is exhausted; please try again later") from stream_exc
 
                 # Fallback is allowed ONLY BEFORE first customer-visible token has been emitted
-                if not has_emitted_any_token and _is_transient(stream_exc) and self.fallback_model_name and active_model != self.fallback_model_name:
+                if not has_emitted_any_token and _is_transient(stream_exc) and self.has_distinct_fallback and active_model != self.fallback_model_name:
                     logger.warning(
                         "Primary model %s failed before first token chunk (%s); switching to fallback model %s",
                         active_model, stream_exc, self.fallback_model_name
@@ -374,7 +384,7 @@ At the very end of your response, output exactly one intent tag on a new line:
         from google.genai import types
         prompt = f"""Analyze this customer-support request using the File Search evidence.
 Return exactly the validated schema. Choose only an allowed intent from:
-ACCOUNT_ACCESS, ACCOUNT_SUPPORT, CUSTOMER_SERVICE_CONTACT, DELIVERY_DELAY, ESCALATION, ORDER_STATUS, PACKAGE_NOT_RECEIVED, PRODUCT_ISSUE, REFUND_PENDING.
+ACCOUNT_ACCESS, ACCOUNT_SUPPORT, CUSTOMER_SERVICE_CONTACT, DELIVERY_DELAY, ORDER_STATUS, PACKAGE_NOT_RECEIVED, PRODUCT_ISSUE, REFUND_PENDING.
 Preserve the customer's language code.
 Escalate fraud, compromise, unauthorized activity, human/manager requests, security-sensitive or unsupported high-risk cases.
 Language hint: {language_hint or 'auto'}

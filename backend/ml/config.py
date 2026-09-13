@@ -49,14 +49,13 @@ class MLConfig:
     # Minimum confidence required before triggering fallback / escalation flag
     CONFIDENCE_THRESHOLD: float = float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.50"))
 
-    # Canonical list of 9 supported intents
+    # Canonical list of 8 supported intents
     SUPPORTED_INTENTS: List[str] = field(
         default_factory=lambda: [
             "ACCOUNT_ACCESS",
             "ACCOUNT_SUPPORT",
             "CUSTOMER_SERVICE_CONTACT",
             "DELIVERY_DELAY",
-            "ESCALATION",
             "ORDER_STATUS",
             "PACKAGE_NOT_RECEIVED",
             "PRODUCT_ISSUE",

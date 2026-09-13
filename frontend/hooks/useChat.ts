@@ -27,7 +27,6 @@ export function formatIntentName(rawIntent?: string | null): string {
     DELIVERY_DELAY: 'Delivery delay',
     ORDER_STATUS: 'Order status',
     CUSTOMER_SERVICE_CONTACT: 'Customer care',
-    ESCALATION: 'Escalation required',
   };
   if (mapping[clean]) return mapping[clean];
   return clean.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

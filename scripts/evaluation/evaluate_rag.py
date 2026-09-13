@@ -59,7 +59,7 @@ RAG_BENCHMARK_CASES = [
     },
     {
         "query": "I want to talk to your manager or supervisor immediately, this is unacceptable",
-        "expected_intent": "ESCALATION",
+        "expected_intent": "CUSTOMER_SERVICE_CONTACT",
         "category": "Escalation",
         "expected_escalate": True
     },

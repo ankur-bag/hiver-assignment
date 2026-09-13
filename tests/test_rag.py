@@ -25,7 +25,7 @@ class FakeSinglePassGemini:
             yield None, [], "\n\n[INTENT: PRODUCT_ISSUE]"
         elif "hacked" in query:
             yield "Please secure your account immediately. ", [{"title": "case2", "uri": "uri2"}], "Please secure your account immediately. "
-            yield None, [], "\n\n[INTENT: ESCALATION]"
+            yield None, [], "\n\n[INTENT: ACCOUNT_ACCESS]"
         else:
             yield "Here is your order information. ", [{"title": "case3", "uri": "uri3"}], "Here is your order information. "
             yield None, [], "\n\n[INTENT: ORDER_STATUS]"
@@ -62,3 +62,12 @@ def test_wrong_order_classifies_as_product_issue():
     assert result["intent"] == "PRODUCT_ISSUE"
     assert result["escalate"] is False
     assert "[INTENT:" not in result["reply"]
+
+
+def test_security_issue_classifies_into_issue_intent_with_independent_escalation():
+    result = RAGService(FakeSinglePassGemini()).chat("Someone hacked my account and changed my password", "en")
+    assert result["intent"] == "ACCOUNT_ACCESS"
+    assert result["intent"] != "ESCALATION"
+    assert result["escalate"] is True
+    assert "compromise" in result["escalation_reason"].lower()
+

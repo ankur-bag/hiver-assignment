@@ -96,10 +96,7 @@ class RAGService:
         full_raw_text = "".join(raw_chunks)
         model_intent, clean_reply = extract_intent_and_clean_text(full_raw_text)
 
-        if guardrail.should_escalate:
-            final_intent = CanonicalIntent.ESCALATION if not model_intent else model_intent
-        else:
-            final_intent = model_intent or CanonicalIntent.CUSTOMER_SERVICE_CONTACT
+        final_intent = model_intent or CanonicalIntent.CUSTOMER_SERVICE_CONTACT
 
         validation = validate_response(clean_reply)
         reply = validation.sanitized_text if validation.is_valid else SAFE_FALLBACK
@@ -224,10 +221,7 @@ class RAGService:
             full_raw_text = "".join(raw_text_chunks)
             model_intent, clean_reply = extract_intent_and_clean_text(full_raw_text)
 
-            if guardrail.should_escalate:
-                final_intent = CanonicalIntent.ESCALATION if not model_intent else model_intent
-            else:
-                final_intent = model_intent or CanonicalIntent.CUSTOMER_SERVICE_CONTACT
+            final_intent = model_intent or CanonicalIntent.CUSTOMER_SERVICE_CONTACT
 
             # 4. Response validation and final escalation check
             validation = validate_response(clean_reply)

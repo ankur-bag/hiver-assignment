@@ -1,0 +1,101 @@
+{
+  "n_total": 3,
+  "n_success": 1,
+  "n_failed": 2,
+  "intent": {
+    "accuracy": 1.0,
+    "macro_precision": 1.0,
+    "macro_recall": 1.0,
+    "macro_f1": 1.0,
+    "weighted_f1": 1.0,
+    "per_intent": {
+      "ACCOUNT_ACCESS": {
+        "support": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "REFUND_PENDING": {
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    "confusion_matrix": {
+      "ACCOUNT_ACCESS": {
+        "ACCOUNT_ACCESS": 1,
+        "REFUND_PENDING": 0
+      },
+      "REFUND_PENDING": {
+        "ACCOUNT_ACCESS": 0,
+        "REFUND_PENDING": 0
+      }
+    }
+  },
+  "escalation": {
+    "accuracy": 1.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "tn": 1,
+    "fp": 0,
+    "fn": 0,
+    "false_positive_ids": [],
+    "false_negative_ids": []
+  },
+  "grounding": {
+    "success_rate": 1.0,
+    "grounded_count": 1,
+    "total_successful": 1,
+    "by_intent": {
+      "ACCOUNT_ACCESS": 1.0
+    },
+    "by_difficulty": {
+      "hard": 1.0
+    },
+    "by_language": {
+      "de": 1.0
+    }
+  },
+  "latency": {
+    "median_ttft_ms": 15327.55,
+    "p90_ttft_ms": 15327.55,
+    "p95_ttft_ms": 15327.55,
+    "median_total_ms": 15735.8,
+    "p90_total_ms": 15735.8,
+    "p95_total_ms": 15735.8,
+    "min_total_ms": 15735.8,
+    "max_total_ms": 15735.8
+  },
+  "difficulty_breakdown": {
+    "hard": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    }
+  },
+  "language_breakdown": {
+    "english": {
+      "total": 0,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "non_english": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "individual": {
+      "de": {
+        "total": 1,
+        "correct": 1,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "error_counts": {
+    "PROVIDER_QUOTA_EXHAUSTED": 2
+  }
+}

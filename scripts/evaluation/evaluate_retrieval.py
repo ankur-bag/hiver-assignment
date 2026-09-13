@@ -58,7 +58,7 @@ BENCHMARK_QUERIES = [
     },
     {
         "query": "I need to talk to a supervisor or customer service manager right away",
-        "expected_intent": "ESCALATION",
+        "expected_intent": "CUSTOMER_SERVICE_CONTACT",
         "category": "Support Escalation"
     },
     {

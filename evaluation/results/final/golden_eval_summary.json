@@ -1,0 +1,321 @@
+{
+  "n_total": 158,
+  "n_success": 158,
+  "n_failed": 0,
+  "model_successful_examples": 158,
+  "provider_failures": 0,
+  "infrastructure_failures": 0,
+  "other_failures": 0,
+  "intent": {
+    "accuracy": 0.6709,
+    "macro_precision": 0.6327,
+    "macro_recall": 0.6982,
+    "macro_f1": 0.6251,
+    "weighted_f1": 0.6571,
+    "per_intent": {
+      "ACCOUNT_ACCESS": {
+        "support": 3,
+        "precision": 0.6,
+        "recall": 1.0,
+        "f1": 0.75
+      },
+      "ACCOUNT_SUPPORT": {
+        "support": 16,
+        "precision": 0.6364,
+        "recall": 0.4375,
+        "f1": 0.5185
+      },
+      "CUSTOMER_SERVICE_CONTACT": {
+        "support": 37,
+        "precision": 0.7333,
+        "recall": 0.8919,
+        "f1": 0.8049
+      },
+      "DELIVERY_DELAY": {
+        "support": 38,
+        "precision": 0.75,
+        "recall": 0.7895,
+        "f1": 0.7692
+      },
+      "ORDER_STATUS": {
+        "support": 24,
+        "precision": 0.6,
+        "recall": 0.25,
+        "f1": 0.3529
+      },
+      "PACKAGE_NOT_RECEIVED": {
+        "support": 11,
+        "precision": 0.5625,
+        "recall": 0.8182,
+        "f1": 0.6667
+      },
+      "PRODUCT_ISSUE": {
+        "support": 23,
+        "precision": 0.8667,
+        "recall": 0.5652,
+        "f1": 0.6842
+      },
+      "REFUND_PENDING": {
+        "support": 6,
+        "precision": 0.3125,
+        "recall": 0.8333,
+        "f1": 0.4545
+      }
+    },
+    "confusion_matrix": {
+      "ACCOUNT_ACCESS": {
+        "ACCOUNT_ACCESS": 3,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 0
+      },
+      "ACCOUNT_SUPPORT": {
+        "ACCOUNT_ACCESS": 1,
+        "ACCOUNT_SUPPORT": 7,
+        "CUSTOMER_SERVICE_CONTACT": 2,
+        "DELIVERY_DELAY": 1,
+        "ORDER_STATUS": 2,
+        "PACKAGE_NOT_RECEIVED": 1,
+        "PRODUCT_ISSUE": 1,
+        "REFUND_PENDING": 1
+      },
+      "CUSTOMER_SERVICE_CONTACT": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 33,
+        "DELIVERY_DELAY": 3,
+        "ORDER_STATUS": 1,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 0
+      },
+      "DELIVERY_DELAY": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 1,
+        "DELIVERY_DELAY": 30,
+        "ORDER_STATUS": 1,
+        "PACKAGE_NOT_RECEIVED": 5,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 1
+      },
+      "ORDER_STATUS": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 1,
+        "CUSTOMER_SERVICE_CONTACT": 4,
+        "DELIVERY_DELAY": 6,
+        "ORDER_STATUS": 6,
+        "PACKAGE_NOT_RECEIVED": 1,
+        "PRODUCT_ISSUE": 1,
+        "REFUND_PENDING": 5
+      },
+      "PACKAGE_NOT_RECEIVED": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 1,
+        "CUSTOMER_SERVICE_CONTACT": 0,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 9,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 1
+      },
+      "PRODUCT_ISSUE": {
+        "ACCOUNT_ACCESS": 1,
+        "ACCOUNT_SUPPORT": 2,
+        "CUSTOMER_SERVICE_CONTACT": 4,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 13,
+        "REFUND_PENDING": 3
+      },
+      "REFUND_PENDING": {
+        "ACCOUNT_ACCESS": 0,
+        "ACCOUNT_SUPPORT": 0,
+        "CUSTOMER_SERVICE_CONTACT": 1,
+        "DELIVERY_DELAY": 0,
+        "ORDER_STATUS": 0,
+        "PACKAGE_NOT_RECEIVED": 0,
+        "PRODUCT_ISSUE": 0,
+        "REFUND_PENDING": 5
+      }
+    }
+  },
+  "escalation": {
+    "accuracy": 0.7215,
+    "precision": 0.6667,
+    "recall": 0.087,
+    "f1": 0.1538,
+    "tp": 4,
+    "tn": 110,
+    "fp": 2,
+    "fn": 42,
+    "false_positive_ids": [
+      "G067",
+      "G112"
+    ],
+    "false_negative_ids": [
+      "G005",
+      "G008",
+      "G014",
+      "G015",
+      "G017",
+      "G021",
+      "G026",
+      "G028",
+      "G032",
+      "G034",
+      "G042",
+      "G048",
+      "G050",
+      "G053",
+      "G056",
+      "G061",
+      "G063",
+      "G065",
+      "G066",
+      "G072",
+      "G079",
+      "G093",
+      "G098",
+      "G128",
+      "G135",
+      "G142",
+      "G162",
+      "G165",
+      "G169",
+      "G170",
+      "G171",
+      "G174",
+      "G176",
+      "G182",
+      "G183",
+      "G189",
+      "G191",
+      "G192",
+      "G193",
+      "G196",
+      "G199",
+      "G200"
+    ]
+  },
+  "grounding": {
+    "success_rate": 1.0,
+    "grounded_count": 158,
+    "total_successful": 158,
+    "by_intent": {
+      "PRODUCT_ISSUE": 1.0,
+      "ORDER_STATUS": 1.0,
+      "CUSTOMER_SERVICE_CONTACT": 1.0,
+      "PACKAGE_NOT_RECEIVED": 1.0,
+      "ACCOUNT_SUPPORT": 1.0,
+      "DELIVERY_DELAY": 1.0,
+      "ACCOUNT_ACCESS": 1.0,
+      "REFUND_PENDING": 1.0
+    },
+    "by_difficulty": {
+      "hard": 1.0,
+      "medium": 1.0,
+      "easy": 1.0
+    },
+    "by_language": {
+      "de": 1.0,
+      "es": 1.0,
+      "en": 1.0,
+      "fr": 1.0,
+      "hinglish": 1.0,
+      "tanglish": 1.0,
+      "ja": 1.0,
+      "pt": 1.0
+    }
+  },
+  "latency": {
+    "median_ttft_ms": 5515.84,
+    "p90_ttft_ms": 5858.09,
+    "p95_ttft_ms": 6024.97,
+    "median_total_ms": 5895.37,
+    "p90_total_ms": 6322.99,
+    "p95_total_ms": 6526.37,
+    "min_total_ms": 5516.49,
+    "max_total_ms": 7132.02
+  },
+  "difficulty_breakdown": {
+    "easy": {
+      "total": 49,
+      "correct": 35,
+      "accuracy": 0.7143
+    },
+    "hard": {
+      "total": 48,
+      "correct": 31,
+      "accuracy": 0.6458
+    },
+    "medium": {
+      "total": 61,
+      "correct": 40,
+      "accuracy": 0.6557
+    }
+  },
+  "language_breakdown": {
+    "english": {
+      "total": 121,
+      "correct": 80,
+      "accuracy": 0.6612
+    },
+    "non_english": {
+      "total": 37,
+      "correct": 26,
+      "accuracy": 0.7027
+    },
+    "individual": {
+      "de": {
+        "total": 6,
+        "correct": 1,
+        "accuracy": 0.1667
+      },
+      "en": {
+        "total": 121,
+        "correct": 80,
+        "accuracy": 0.6612
+      },
+      "es": {
+        "total": 14,
+        "correct": 9,
+        "accuracy": 0.6429
+      },
+      "fr": {
+        "total": 12,
+        "correct": 11,
+        "accuracy": 0.9167
+      },
+      "hinglish": {
+        "total": 1,
+        "correct": 1,
+        "accuracy": 1.0
+      },
+      "ja": {
+        "total": 2,
+        "correct": 2,
+        "accuracy": 1.0
+      },
+      "pt": {
+        "total": 1,
+        "correct": 1,
+        "accuracy": 1.0
+      },
+      "tanglish": {
+        "total": 1,
+        "correct": 1,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "error_counts": {},
+  "run_id": "run-20260913-092747-088996",
+  "golden_set_hash": "55051f29b32e",
+  "base_url": "http://127.0.0.1:8000"
+}
