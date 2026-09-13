@@ -1,11 +1,11 @@
 {
   "status": "completed",
   "sample_size": 40,
-  "rated_examples": 1,
+  "rated_examples": 2,
   "overall_summary": {
-    "average_exact_agreement": 0.6,
+    "average_exact_agreement": 0.7,
     "average_plus_minus_one_agreement": 1.0,
-    "average_mae": 0.4,
+    "average_mae": 0.3,
     "pass_fail_agreement": 1.0,
     "pass_fail_cohen_kappa": 0.0,
     "hallucination_agreement": 1.0
@@ -26,9 +26,9 @@
       "spearman_pvalue": 1.0
     },
     "actionability": {
-      "exact_agreement": 0.0,
+      "exact_agreement": 0.5,
       "plus_minus_one_agreement": 1.0,
-      "mean_absolute_error": 1.0,
+      "mean_absolute_error": 0.5,
       "spearman_correlation": 0.0,
       "spearman_pvalue": 1.0
     },

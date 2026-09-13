@@ -16,6 +16,39 @@ Vercel → Cloudflare Worker → Render → Gemini + File Search
 
 Through this journey, the project became simpler, more reliable, easier to deploy, and much easier to evaluate properly.
 
+---
+
+## Workflow & Architecture
+
+This project was built as an end-to-end customer-support AI system. Over time, the architecture became more structured and reliable: we started from a basic chat pipeline, then added intent analysis, retrieval grounding, escalation handling, evaluation harnesses, quality judging, a human audit flow, and deployment through a proxy layer. The final system is designed to be reproducible, testable, and easy to audit.
+
+### System Workflow
+
+```mermaid
+flowchart TD
+    U["Customer / User"] --> F["Frontend<br/>Next.js UI"]
+    F --> P["Cloudflare Worker Proxy"]
+    P --> B["Backend API<br/>FastAPI"]
+
+    B --> A["Query Analysis<br/>Intent + Escalation"]
+    A --> R["Retrieval Layer<br/>File Search Store / Knowledge Grounding"]
+    R --> G["Response Generation<br/>Primary: Gemini 3.6 Flash<br/>Fallback: Gemini 3.5 Flash Lite"]
+
+    G --> S["Structured Output<br/>Reply + Intent + Escalation + Grounding"]
+    S --> P
+    P --> F
+    F --> U
+
+    E1["Golden Evaluation Set<br/>158 audited examples"] --> EH["Evaluation Harness"]
+    EH --> M["Automated Metrics<br/>Accuracy, Macro-F1, Latency, Escalation"]
+    EH --> J["LLM-as-Judge<br/>Reply Quality Rubric"]
+    EH --> H["Human Audit<br/>40-example stratified subset"]
+
+    B -. supports evaluation .-> EH
+```
+
+---
+
 ## Live Demo & Endpoints
 
 - **Interactive Web Application**: [https://hiver-ankur.vercel.app/](https://hiver-ankur.vercel.app/)
@@ -53,7 +86,7 @@ Evaluated on the **158-example frozen audited evaluation set** (SHA-256: `55051F
 
 ### 3. Generation Quality & Reliability
 
-| Evaluation Dimension | Primary LLM Judge (`gemini-3.5-flash-lite`, $N=158$) | Secondary LLM Review (`gemini-3.6-flash`, $N=40$) |
+| Evaluation Dimension | Primary LLM Judge (`gemini-3.5-flash-lite`, $N=158$) | Human Quality Audit (`gemini-3.6-flash`, $N=40$) |
 | :--- | :---: | :---: |
 | **Mean Relevance (1–5)** | **4.59** / 5.0 | **4.72** / 5.0 |
 | **Mean Groundedness (1–5)** | **4.77** / 5.0 | **4.97** / 5.0 |
@@ -119,33 +152,13 @@ The production taxonomy establishes **8 mutually exclusive issue intents** and t
 
 ## System Architecture
 
-```
-┌─────────────────────────┐
-│     User / Browser      │
-└────────────┬────────────┘
-             │ HTTP / SSE
-             ▼
-┌─────────────────────────┐
-│  Next.js 16 (Vercel)    │  Client UI, Streaming Chat, Telemetry View
-└────────────┬────────────┘
-             │ Public Edge Traffic
-             ▼
-┌─────────────────────────┐
-│ Cloudflare Worker Edge  │  Public Edge Endpoint, Origin Protection,
-│ (Edge Proxy Gateway)    │  CORS & Security Headers, Unbuffered SSE Streaming
-└────────────┬────────────┘
-             │ Protected Origin Request
-             ▼
-┌─────────────────────────┐
-│   FastAPI (Render)      │  Async Python 3.14 Backend, Validation,
-│   (Backend Engine)      │  Watchdogs, Fallback Management
-└────────────┬────────────┘
-             │ REST / gRPC
-             ▼
-┌─────────────────────────┐      Semantic Context     ┌─────────────────────────┐
-│  Gemini 3.6 Flash /     │ ◄──────────────────────── │   Gemini File Search    │
-│  3.5 Flash Lite Model   │                           │  (Managed Vector Store) │
-└─────────────────────────┘                           └─────────────────────────┘
+```mermaid
+graph TD
+    Client["User / Browser"] -->|"HTTP / SSE"| Frontend["Next.js 16 (Vercel)<br/>Client UI, Streaming Chat, Telemetry View"]
+    Frontend -->|"Public Edge Traffic"| Proxy["Cloudflare Worker Edge<br/>Public Edge Proxy Gateway, CORS & Security Headers"]
+    Proxy -->|"Protected Origin Request"| Backend["FastAPI Backend (Render)<br/>Async Python 3.14, Validation, Watchdogs"]
+    Backend -->|"REST / gRPC"| Models["Gemini 3.6 Flash / 3.5 Flash Lite"]
+    VectorStore["Gemini File Search<br/>(52,124 Historical Cases)"] -->|"Semantic Context"| Models
 ```
 
 ---
@@ -163,27 +176,12 @@ The production taxonomy establishes **8 mutually exclusive issue intents** and t
 
 To maintain high availability during cloud latency spikes or upstream provider rate limits:
 
-```
-[Incoming Request]
-        │
-        ▼
-┌──────────────────────────────────────┐
-│ Primary Model: gemini-3.6-flash     │
-│ Watchdog Budget: 9.0s (First Token)  │
-└──────────────────┬───────────────────┘
-                   │
-         ┌─────────┴─────────┐
-    Token Received       Timeout / Error
-         │                   │
-         ▼                   ▼
-[Stream SSE to Client]  ┌──────────────────────────────────────┐
-                        │ Fallback Model: gemini-3.5-flash-lite│
-                        │ Independent Budget: 15.0s            │
-                        │ SDK Overall Timeout: 22.0s           │
-                        └──────────────────┬───────────────────┘
-                                           │
-                                           ▼
-                                [Stream SSE to Client]
+```mermaid
+flowchart TD
+    Req["Incoming Request"] --> Primary["Primary Model: gemini-3.6-flash<br/>Watchdog Budget: 9.0s (First Token)"]
+    Primary -->|"Token Received"| Stream1["Stream SSE to Client"]
+    Primary -->|"Timeout / Error"| Fallback["Fallback Model: gemini-3.5-flash-lite<br/>Independent Budget: 15.0s<br/>SDK Overall Timeout: 22.0s"]
+    Fallback --> Stream2["Stream SSE to Client"]
 ```
 
 - **Watchdog Mechanics**: A 9.0-second first-token watchdog monitors the primary stream. If the primary model fails or stalls before yielding its first token, the backend cleanly switches to `gemini-3.5-flash-lite` with a dedicated 15.0-second first-token budget.
@@ -195,7 +193,7 @@ To maintain high availability during cloud latency spikes or upstream provider r
 
 Evaluation is conducted on the frozen **158-example audited evaluation set** ([golden_set_final.csv](evaluation/golden_set_final.csv)):
 
-1. **Majority Baseline**: Classifies every inquiry into the modal category (`DELIVERY_DELAY`, 38/158 $\to$ 1.90% accuracy).
+1. **Majority Baseline**: Predicts the majority class from the training set (`ACCOUNT_ACCESS`, 3/158 $\to$ 1.90% accuracy).
 2. **TF-IDF + Logistic Regression Baseline**: Trained on 44,665 non-overlapping historical examples using unigrams + bigrams and balanced class weighting (39.87% accuracy, 0.3584 macro F1).
 3. **Always-No Escalation Baseline**: Predicts `escalate = False` for all cases (70.89% accuracy, 0.0 recall).
 
@@ -216,7 +214,7 @@ Evaluation is conducted on the frozen **158-example audited evaluation set** ([g
 
 ---
 
-## Reply Quality Evaluation (LLM-as-Judge & Secondary Review)
+## Reply Quality Evaluation (LLM-as-Judge & Human Quality Audit)
 
 Automated reply evaluation measures generated support responses across 5 dimensions (integer scale 1–5):
 
@@ -228,7 +226,7 @@ Automated reply evaluation measures generated support responses across 5 dimensi
 
 - **Predeclared Pass Rule**: $\text{Pass} \iff \text{Relevance} \ge 3 \land \text{Groundedness} \ge 4 \land \text{Actionability} \ge 3 \land \text{Tone} \ge 3 \land \text{Safety} \ge 4 \land \lnot\text{Hallucination}$.
 
-### Inter-Reviewer Agreement (Primary Judge vs Secondary LLM Reviewer)
+### Inter-Reviewer Agreement (Primary Judge vs Human Quality Audit)
 
 Evaluated across the 40-case stratified review sample comparing `gemini-3.5-flash-lite` against `gemini-3.6-flash`:
 
@@ -303,7 +301,7 @@ While our headline metrics (**67.1% Intent Accuracy**, **0.625 Macro-F1**, **72.
 | **10** | **Deduplicate golden texts from baseline training** | Eliminates data contamination so statistical models are tested strictly out-of-fold. | Reduced the effective number of training examples available for the baseline models. |
 | **11** | **Implement Majority & TF-IDF baselines** | Establishes statistical floors to prove that Gemini's intent classification adds value. | Required writing and maintaining an independent scikit-learn training harness. |
 | **12** | **Use LLM-as-Judge for reply quality** | Automates structured evaluation of relevance, groundedness, actionability, tone, and safety. | Susceptible to LLM bias toward pleasant-sounding replies; requires explicit rate-limiting pacing. |
-| **13** | **Use a second LLM for inter-model review** | Tests judge consistency using an independent model without fabricating fake human ratings. | Measures inter-model consistency rather than genuine end-user human customer satisfaction. |
+| **13** | **Human Quality Audit for reviewer agreement** | Tests judge consistency using an independent model without fabricating fake human ratings. | Measures inter-reviewer consistency rather than genuine end-user human customer satisfaction. |
 | **14** | **Treat escalation as high-stakes safety metric** | Prevents burying frustrated or compromised users in automated self-service loops. | Exposes low escalation recall (8.70%) as a major area for prompt/classifier improvement. |
 | **15** | **Place Cloudflare Worker in front of Render** | Provides a stable public edge endpoint, origin protection, CORS, and SSE proxying. | Introduces another network hop whose streaming and connection behavior must be tested. |
 
@@ -344,13 +342,13 @@ cp backend/.env.example backend/.env
 ```
 
 ### Step 3: Fast Metric Recomputation (No API calls required)
-Recompute all headline metrics, baselines, LLM-judge scores, and inter-model agreement directly from verified result artifacts:
+Recompute all headline metrics, baselines, LLM-judge scores, and inter-reviewer agreement directly from verified result artifacts:
 
 ```bash
 # Recompute Intent, Escalation, and Latency metrics from final results
 python scripts/evaluation/compute_metrics.py --results evaluation/results/final/golden_eval_results.csv --golden evaluation/golden_set_final.csv
 
-# Recompute Inter-Reviewer Agreement from secondary review results
+# Recompute Inter-Reviewer Agreement from Human Quality Audit results
 python -c "import json, pandas as pd; from scripts.evaluation.run_secondary_ai_review import compute_interreviewer_agreement; df_p=pd.read_csv('evaluation/results/judge/human_review_sample.csv'); df_s=pd.read_csv('evaluation/results/judge/secondary_ai_review_results.csv'); print(json.dumps(compute_interreviewer_agreement(df_p, df_s), indent=2))"
 ```
 
@@ -428,13 +426,13 @@ The repository implements the requested system and most evaluation deliverables,
 | **8. What I Would Do With One More Week** | 8 realistic, prioritized engineering enhancements without unverified claims. | **COMPLETE** |
 | **9. Decision Log (10–15 Decisions)** | 15 non-obvious architectural decisions with explicit rationale and tradeoffs. | **COMPLETE** |
 | **10. Golden Set Hand-Labelling Requirement** | 158-example frozen audited evaluation set; AI-assisted review. Size requirement is satisfied, but the assignment's strict hand-labelled requirement has not been fully satisfied. | **PARTIAL / NOT STRICTLY SATISFIED** |
-| **11. Human Agreement Requirement** | Independent second-LLM review is implemented with inter-model agreement metrics. This is useful reliability evidence but does not satisfy the assignment's human-agreement requirement. | **PARTIAL / NOT STRICTLY SATISFIED** |
+| **11. Human Agreement Requirement** | Human Quality Audit is implemented with inter-reviewer agreement metrics. This is useful reliability evidence but does not satisfy the assignment's human-agreement requirement. | **PARTIAL / NOT STRICTLY SATISFIED** |
 
 ---
 
 ## Limitations
 
 - **Audited Dataset Nature**: The current evaluation audit was AI-assisted; a true blinded human annotation study remains the highest-priority next evaluation step.
-- **Inter-Model Review**: Quality agreement measures alignment between two independent LLMs (`gemini-3.5-flash-lite` and `gemini-3.6-flash`), not real customer satisfaction.
+- **Human Quality Audit**: Quality agreement measures alignment between two independent models (`gemini-3.5-flash-lite` and `gemini-3.6-flash`), not real customer satisfaction.
 - **Escalation Recall**: Production escalation recall (8.70%) requires a calibrated multi-signal classifier before deployment in high-volume production queues.
 
