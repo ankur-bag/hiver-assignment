@@ -1,6 +1,50 @@
 {
-  "status": "pending_human_review",
+  "status": "completed",
   "sample_size": 40,
-  "sample_file": "evaluation/results/judge/human_review_sample.csv",
-  "message": "Human ratings have not been completed yet. Run scripts/evaluation/compute_judge_agreement.py after completing review."
+  "rated_examples": 1,
+  "overall_summary": {
+    "average_exact_agreement": 0.6,
+    "average_plus_minus_one_agreement": 1.0,
+    "average_mae": 0.4,
+    "pass_fail_agreement": 1.0,
+    "pass_fail_cohen_kappa": 0.0,
+    "hallucination_agreement": 1.0
+  },
+  "dimensional_metrics": {
+    "relevance": {
+      "exact_agreement": 0.0,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 1.0,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0
+    },
+    "groundedness": {
+      "exact_agreement": 1.0,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 0.0,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0
+    },
+    "actionability": {
+      "exact_agreement": 0.0,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 1.0,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0
+    },
+    "tone": {
+      "exact_agreement": 1.0,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 0.0,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0
+    },
+    "safety": {
+      "exact_agreement": 1.0,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 0.0,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0
+    }
+  }
 }

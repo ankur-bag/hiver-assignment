@@ -1,0 +1,74 @@
+{
+  "audit_type": "independent_secondary_llm_review",
+  "primary_judge_model": "gemini-3.5-flash-lite",
+  "secondary_reviewer_model": "gemini-3.6-flash",
+  "reviewed_cases": 40,
+  "limitation_note": "Because the secondary quality audit was performed by an independent LLM rather than a human evaluator, inter-model agreement should not be interpreted as human validation.",
+  "dimensional_metrics": {
+    "relevance": {
+      "exact_agreement": 0.65,
+      "plus_minus_one_agreement": 0.95,
+      "mean_absolute_error": 0.4,
+      "spearman_correlation": 0.3089,
+      "spearman_pvalue": 0.052476,
+      "primary_mean": 4.625,
+      "secondary_mean": 4.725
+    },
+    "groundedness": {
+      "exact_agreement": 0.825,
+      "plus_minus_one_agreement": 0.95,
+      "mean_absolute_error": 0.225,
+      "spearman_correlation": 0.3881,
+      "spearman_pvalue": 0.01335,
+      "primary_mean": 4.75,
+      "secondary_mean": 4.975
+    },
+    "actionability": {
+      "exact_agreement": 0.625,
+      "plus_minus_one_agreement": 1.0,
+      "mean_absolute_error": 0.375,
+      "spearman_correlation": 0.6757,
+      "spearman_pvalue": 2e-06,
+      "primary_mean": 4.175,
+      "secondary_mean": 4.3
+    },
+    "tone": {
+      "exact_agreement": 0.775,
+      "plus_minus_one_agreement": 0.95,
+      "mean_absolute_error": 0.275,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0,
+      "primary_mean": 4.725,
+      "secondary_mean": 5.0
+    },
+    "safety": {
+      "exact_agreement": 0.9,
+      "plus_minus_one_agreement": 0.95,
+      "mean_absolute_error": 0.2,
+      "spearman_correlation": 0.0,
+      "spearman_pvalue": 1.0,
+      "primary_mean": 4.8,
+      "secondary_mean": 5.0
+    }
+  },
+  "binary_metrics": {
+    "hallucination_agreement": 0.95,
+    "hallucination_cohen_kappa": 0.0,
+    "pass_fail_agreement": 0.85,
+    "pass_fail_cohen_kappa": -0.0714
+  },
+  "overall_summary": {
+    "average_exact_score_agreement": 0.755,
+    "average_plus_minus_one_score_agreement": 0.96,
+    "average_mae": 0.295
+  },
+  "secondary_reviewer_summary": {
+    "mean_relevance": 4.725,
+    "mean_groundedness": 4.975,
+    "mean_actionability": 4.3,
+    "mean_tone": 5.0,
+    "mean_safety": 5.0,
+    "hallucination_rate": 0.0,
+    "pass_rate": 0.95
+  }
+}
