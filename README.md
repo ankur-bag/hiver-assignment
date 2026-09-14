@@ -11,7 +11,7 @@ https://drive.google.com/file/d/1A6A9w2Q-NER38RJOaFSaJzmSFFAEKIvw/view?usp=shari
 
 # Project Journey
 
-This project changed a lot while I was building it. At first, we used local models, embeddings, classifiers, and external vector tools. Later, I simplified the system and moved to a cleaner Gemini-based setup with Gemini File Search for retrieval and Gemini 3.6 Flash for generating replies.
+This project changed a lot while I was building it. At first, I used local models, embeddings, classifiers, and external vector tools. Later, I simplified the system and moved to a cleaner Gemini-based setup with Gemini File Search for retrieval and Gemini 3.6 Flash for generating replies.
 
 I also improved the logic of the system. In the beginning, ESCALATION was treated like an intent. Later, we realized escalation is a separate decision that can happen for any issue. So the final system uses 8 support intents + a separate escalation decision.
 
